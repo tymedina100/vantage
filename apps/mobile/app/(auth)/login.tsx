@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -10,14 +10,64 @@ import {
   Alert,
 } from "react-native";
 import { router } from "expo-router";
+import * as LocalAuthentication from "expo-local-authentication";
 import { useAuthStore } from "@/store/auth";
 import { colors, spacing, radius, typography } from "@/lib/theme";
+
+function getBiometricLabel(types: LocalAuthentication.AuthenticationType[]): string {
+  if (types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) {
+    return "Face ID";
+  }
+  if (types.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) {
+    return Platform.OS === "ios" ? "Touch ID" : "Fingerprint";
+  }
+  return "Biometrics";
+}
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const login = useAuthStore((s) => s.login);
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [biometricLabel, setBiometricLabel] = useState("Biometrics");
+  const { login, loginWithBiometric, biometricEnabled } = useAuthStore();
+
+  const checkBiometrics = useCallback(async () => {
+    const hasHardware = await LocalAuthentication.hasHardwareAsync();
+    const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+    if (hasHardware && isEnrolled && biometricEnabled) {
+      const types = await LocalAuthentication.supportedAuthenticationTypesAsync();
+      setBiometricLabel(getBiometricLabel(types));
+      setBiometricAvailable(true);
+      return true;
+    }
+    return false;
+  }, [biometricEnabled]);
+
+  const handleBiometricLogin = useCallback(async () => {
+    setLoading(true);
+    try {
+      await loginWithBiometric();
+      router.replace("/(tabs)/dashboard");
+    } catch (e: unknown) {
+      // Silently fail auto-prompt so the user can fall back to password.
+      // Only show alert on explicit button tap (handled by callers).
+      throw e;
+    } finally {
+      setLoading(false);
+    }
+  }, [loginWithBiometric]);
+
+  // Auto-prompt biometric on mount if enabled.
+  useEffect(() => {
+    checkBiometrics().then((available) => {
+      if (available) {
+        handleBiometricLogin().catch(() => {
+          // Swallow — user will use password or tap the biometric button.
+        });
+      }
+    });
+  }, [checkBiometrics, handleBiometricLogin]);
 
   const handleLogin = async () => {
     if (!email || !password) return;
@@ -27,6 +77,21 @@ export default function LoginScreen() {
       router.replace("/(tabs)/dashboard");
     } catch (e: unknown) {
       Alert.alert("Login failed", e instanceof Error ? e.message : "Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBiometricTap = async () => {
+    setLoading(true);
+    try {
+      await loginWithBiometric();
+      router.replace("/(tabs)/dashboard");
+    } catch (e: unknown) {
+      Alert.alert(
+        `${biometricLabel} failed`,
+        e instanceof Error ? e.message : "Please sign in with your password."
+      );
     } finally {
       setLoading(false);
     }
@@ -70,6 +135,16 @@ export default function LoginScreen() {
         >
           <Text style={styles.buttonText}>{loading ? "Signing in..." : "Sign In"}</Text>
         </TouchableOpacity>
+
+        {biometricAvailable && (
+          <TouchableOpacity
+            style={[styles.biometricButton, loading && styles.buttonDisabled]}
+            onPress={handleBiometricTap}
+            disabled={loading}
+          >
+            <Text style={styles.biometricButtonText}>Sign in with {biometricLabel}</Text>
+          </TouchableOpacity>
+        )}
 
         <TouchableOpacity
           style={styles.linkButton}
@@ -127,6 +202,19 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: colors.white,
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  biometricButton: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  biometricButtonText: {
+    color: colors.primary,
     fontSize: 16,
     fontWeight: "600",
   },

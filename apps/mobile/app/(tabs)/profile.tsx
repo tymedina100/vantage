@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -5,9 +6,12 @@ import {
   StyleSheet,
   Alert,
   ScrollView,
+  Switch,
+  Platform,
 } from "react-native";
 import { router } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
+import * as LocalAuthentication from "expo-local-authentication";
 import { useAuthStore } from "@/store/auth";
 import { api } from "@/lib/api";
 import { colors, spacing, radius, typography } from "@/lib/theme";
@@ -26,8 +30,41 @@ function formatCurrency(amount: number): string {
 }
 
 export default function ProfileScreen() {
-  const { email, logout } = useAuthStore();
+  const { email, logout, biometricEnabled, enableBiometric, disableBiometric } = useAuthStore();
+  const [biometricSupported, setBiometricSupported] = useState(false);
+  const [biometricLabel, setBiometricLabel] = useState("Biometrics");
   const syncMutation = { isPending: false }; // placeholder
+
+  useEffect(() => {
+    (async () => {
+      const hasHardware = await LocalAuthentication.hasHardwareAsync();
+      const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+      if (hasHardware && isEnrolled) {
+        setBiometricSupported(true);
+        const types = await LocalAuthentication.supportedAuthenticationTypesAsync();
+        if (types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) {
+          setBiometricLabel("Face ID");
+        } else if (types.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) {
+          setBiometricLabel(Platform.OS === "ios" ? "Touch ID" : "Fingerprint");
+        }
+      }
+    })();
+  }, []);
+
+  const handleBiometricToggle = async (value: boolean) => {
+    if (value) {
+      // Verify biometric before enabling so we know it works.
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: `Enable ${biometricLabel} for Finance`,
+        fallbackLabel: "Cancel",
+        disableDeviceFallback: true,
+      });
+      if (!result.success) return;
+      await enableBiometric();
+    } else {
+      await disableBiometric();
+    }
+  };
 
   const { data: accounts } = useQuery({
     queryKey: ["accounts"],
@@ -89,6 +126,28 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       </View>
 
+      {biometricSupported && (
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>Security</Text>
+          <View style={styles.card}>
+            <View style={styles.settingRow}>
+              <Text style={styles.settingLabel}>{biometricLabel}</Text>
+              <Switch
+                value={biometricEnabled}
+                onValueChange={handleBiometricToggle}
+                trackColor={{ false: colors.border, true: colors.primaryDim }}
+                thumbColor={biometricEnabled ? colors.primary : colors.textDim}
+              />
+            </View>
+            <Text style={styles.settingDescription}>
+              {biometricEnabled
+                ? `Use ${biometricLabel} to sign in instead of your password.`
+                : `Enable ${biometricLabel} for faster, secure sign-in.`}
+            </Text>
+          </View>
+        </View>
+      )}
+
       <View style={styles.section}>
         <TouchableOpacity style={styles.dangerButton} onPress={handleLogout}>
           <Text style={styles.dangerButtonText}>Sign Out</Text>
@@ -118,6 +177,16 @@ const styles = StyleSheet.create({
   accountName: { ...typography.label },
   accountMeta: { ...typography.caption, marginTop: 2 },
   accountBalance: { ...typography.label, color: colors.success },
+  settingRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  settingLabel: { ...typography.label },
+  settingDescription: {
+    ...typography.caption,
+    marginTop: spacing.xs,
+  },
   syncButton: {
     backgroundColor: colors.surface,
     borderRadius: radius.md,
