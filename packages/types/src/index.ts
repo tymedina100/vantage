@@ -27,6 +27,15 @@ export interface ApiError {
 
 export type ApiResult<T> = ApiResponse<T> | ApiError;
 
+// Category
+export interface Category {
+  id: string;
+  name: string;
+  icon: string;
+  color: string;
+  isSystem: boolean;
+}
+
 // Budget
 export interface BudgetWithSpent {
   id: string;
