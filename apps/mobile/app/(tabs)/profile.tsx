@@ -12,6 +12,7 @@ import {
 import { router } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as LocalAuthentication from "expo-local-authentication";
+import { PlaidLink, LinkSuccess, LinkExit } from "react-native-plaid-link-sdk";
 import { useAuthStore } from "@/store/auth";
 import { api } from "@/lib/api";
 import { colors, spacing, radius, typography } from "@/lib/theme";
@@ -33,6 +34,8 @@ export default function ProfileScreen() {
   const { email, logout, biometricEnabled, enableBiometric, disableBiometric } = useAuthStore();
   const [biometricSupported, setBiometricSupported] = useState(false);
   const [biometricLabel, setBiometricLabel] = useState("Biometrics");
+  const [linkToken, setLinkToken] = useState<string | null>(null);
+  const [connecting, setConnecting] = useState(false);
   const queryClient = useQueryClient();
   const syncMutation = useMutation({
     mutationFn: () => api.post("/plaid/sync"),
@@ -81,6 +84,39 @@ export default function ProfileScreen() {
     queryFn: () => api.get<Account[]>("/accounts"),
   });
 
+  const handleConnectBank = async () => {
+    setConnecting(true);
+    try {
+      const { linkToken: token } = await api.post<{ linkToken: string }>("/plaid/link-token", {});
+      setLinkToken(token);
+    } catch {
+      Alert.alert("Error", "Could not start bank connection. Please try again.");
+      setConnecting(false);
+    }
+  };
+
+  const handlePlaidSuccess = async (success: LinkSuccess) => {
+    setLinkToken(null);
+    try {
+      await api.post("/plaid/exchange", {
+        publicToken: success.publicToken,
+        institutionName: success.metadata.institution?.name ?? "Unknown Bank",
+      });
+      await api.post("/plaid/sync", {});
+      queryClient.invalidateQueries({ queryKey: ["accounts"] });
+      Alert.alert("Connected!", "Your bank account has been linked and transactions synced.");
+    } catch {
+      Alert.alert("Error", "Account connected but sync failed. Tap 'Sync Accounts' to retry.");
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  const handlePlaidExit = (_exit: LinkExit) => {
+    setLinkToken(null);
+    setConnecting(false);
+  };
+
   const handleSync = () => syncMutation.mutate();
 
   const handleLogout = () => {
@@ -123,6 +159,22 @@ export default function ProfileScreen() {
         ))}
         {accounts?.length === 0 && (
           <Text style={typography.bodySmall}>No accounts connected yet.</Text>
+        )}
+        <TouchableOpacity
+          style={[styles.connectButton, connecting && { opacity: 0.6 }]}
+          onPress={handleConnectBank}
+          disabled={connecting}
+        >
+          <Text style={styles.connectButtonText}>
+            {connecting ? "Connecting…" : "+ Connect Bank Account"}
+          </Text>
+        </TouchableOpacity>
+        {linkToken && (
+          <PlaidLink
+            tokenConfig={{ token: linkToken, noLoadingState: false }}
+            onSuccess={handlePlaidSuccess}
+            onExit={handlePlaidExit}
+          />
         )}
         <TouchableOpacity
           style={[styles.syncButton, syncMutation.isPending && { opacity: 0.6 }]}
@@ -196,6 +248,14 @@ const styles = StyleSheet.create({
     ...typography.caption,
     marginTop: spacing.xs,
   },
+  connectButton: {
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    alignItems: "center",
+    marginTop: spacing.sm,
+  },
+  connectButtonText: { color: "#fff", fontWeight: "700" },
   syncButton: {
     backgroundColor: colors.surface,
     borderRadius: radius.md,
