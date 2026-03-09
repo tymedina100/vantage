@@ -174,7 +174,9 @@ export default function ProfileScreen() {
             tokenConfig={{ token: linkToken, noLoadingState: false }}
             onSuccess={handlePlaidSuccess}
             onExit={handlePlaidExit}
-          />
+          >
+            <View />
+          </PlaidLink>
         )}
         <TouchableOpacity
           style={[styles.syncButton, syncMutation.isPending && { opacity: 0.6 }]}
