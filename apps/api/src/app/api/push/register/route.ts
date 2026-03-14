@@ -24,3 +24,16 @@ export async function POST(req: NextRequest) {
 
   return ok({ registered: true });
 }
+
+export async function DELETE(req: NextRequest) {
+  let userId: string;
+  try {
+    const payload = getAuthUser(req);
+    userId = payload.sub;
+  } catch {
+    return unauthorized();
+  }
+
+  await prisma.user.update({ where: { id: userId }, data: { pushToken: null } });
+  return ok({ deregistered: true });
+}

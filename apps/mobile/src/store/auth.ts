@@ -10,6 +10,7 @@ interface AuthState {
   email: string | null;
   isLoading: boolean;
   biometricEnabled: boolean;
+  notificationsEnabled: boolean;
   rememberedEmail: string | null;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
@@ -20,6 +21,7 @@ interface AuthState {
   loginWithBiometric: () => Promise<void>;
   setRememberedEmail: (email: string | null) => Promise<void>;
   registerPushToken: () => Promise<void>;
+  deregisterPushToken: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -27,6 +29,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   email: null,
   isLoading: true,
   biometricEnabled: false,
+  notificationsEnabled: true,
   rememberedEmail: null,
 
   hydrate: async () => {
@@ -34,11 +37,12 @@ export const useAuthStore = create<AuthState>((set) => ({
     const email = await SecureStore.getItemAsync("userEmail");
     const userId = await SecureStore.getItemAsync("userId");
     const biometricEnabled = (await SecureStore.getItemAsync("biometricEnabled")) === "true";
+    const notificationsEnabled = (await SecureStore.getItemAsync("notificationsEnabled")) !== "false";
     const rememberedEmail = (await SecureStore.getItemAsync("rememberedEmail")) ?? null;
     if (token && userId) {
-      set({ userId, email, isLoading: false, biometricEnabled, rememberedEmail });
+      set({ userId, email, isLoading: false, biometricEnabled, notificationsEnabled, rememberedEmail });
     } else {
-      set({ isLoading: false, biometricEnabled, rememberedEmail });
+      set({ isLoading: false, biometricEnabled, notificationsEnabled, rememberedEmail });
     }
   },
 
@@ -93,7 +97,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   loginWithBiometric: async () => {
     const result = await LocalAuthentication.authenticateAsync({
-      promptMessage: "Sign in to Finance",
+      promptMessage: "Sign in to Vantage",
       fallbackLabel: "Use Password",
       disableDeviceFallback: false,
     });
@@ -140,5 +144,13 @@ export const useAuthStore = create<AuthState>((set) => ({
 
     const { data: token } = await Notifications.getExpoPushTokenAsync();
     await api.post("/push/register", { token });
+    await SecureStore.setItemAsync("notificationsEnabled", "true");
+    set({ notificationsEnabled: true });
+  },
+
+  deregisterPushToken: async () => {
+    await api.delete("/push/register");
+    await SecureStore.setItemAsync("notificationsEnabled", "false");
+    set({ notificationsEnabled: false });
   },
 }));
