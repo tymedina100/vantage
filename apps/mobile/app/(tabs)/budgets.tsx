@@ -13,6 +13,7 @@ import {
   Alert,
 } from "react-native";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "@/lib/api";
 import { colors, spacing, radius, typography } from "@/lib/theme";
 import type { BudgetWithSpent, Category } from "@finance/types";
@@ -180,9 +181,9 @@ export default function BudgetsScreen() {
   });
 
   return (
-    <>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       <ScrollView
-        style={styles.container}
+        style={{ flex: 1 }}
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} />}
       >
@@ -214,7 +215,7 @@ export default function BudgetsScreen() {
       </ScrollView>
 
       <CreateBudgetModal visible={createVisible} onClose={() => setCreateVisible(false)} />
-    </>
+    </SafeAreaView>
   );
 }
 

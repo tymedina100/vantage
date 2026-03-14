@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "@/lib/api";
 import { colors, spacing, radius, typography } from "@/lib/theme";
 import type { DashboardSummary, BudgetWithSpent, StreakStatus, NudgeMessage } from "@finance/types";
@@ -101,8 +102,9 @@ export default function DashboardScreen() {
   const d = dashboard;
 
   return (
+    <SafeAreaView style={styles.container} edges={["top"]}>
     <ScrollView
-      style={styles.container}
+      style={{ flex: 1 }}
       contentContainerStyle={styles.content}
       refreshControl={
         <RefreshControl
@@ -265,6 +267,7 @@ export default function DashboardScreen() {
         </View>
       )}
     </ScrollView>
+    </SafeAreaView>
   );
 }
 

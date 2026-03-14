@@ -12,7 +12,8 @@ import {
 import { router } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as LocalAuthentication from "expo-local-authentication";
-import { PlaidLink, LinkSuccess, LinkExit } from "react-native-plaid-link-sdk";
+import { openLink, LinkSuccess, LinkExit } from "react-native-plaid-link-sdk";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuthStore } from "@/store/auth";
 import { api } from "@/lib/api";
 import { colors, spacing, radius, typography } from "@/lib/theme";
@@ -34,7 +35,6 @@ export default function ProfileScreen() {
   const { email, logout, biometricEnabled, enableBiometric, disableBiometric } = useAuthStore();
   const [biometricSupported, setBiometricSupported] = useState(false);
   const [biometricLabel, setBiometricLabel] = useState("Biometrics");
-  const [linkToken, setLinkToken] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const queryClient = useQueryClient();
   const syncMutation = useMutation({
@@ -88,33 +88,31 @@ export default function ProfileScreen() {
     setConnecting(true);
     try {
       const { linkToken: token } = await api.post<{ linkToken: string }>("/plaid/link-token", {});
-      setLinkToken(token);
+      openLink({
+        tokenConfig: { token, noLoadingState: false },
+        onSuccess: async (success: LinkSuccess) => {
+          try {
+            await api.post("/plaid/exchange", {
+              publicToken: success.publicToken,
+              institutionName: success.metadata.institution?.name ?? "Unknown Bank",
+            });
+            await api.post("/plaid/sync", {});
+            queryClient.invalidateQueries({ queryKey: ["accounts"] });
+            Alert.alert("Connected!", "Your bank account has been linked and transactions synced.");
+          } catch {
+            Alert.alert("Error", "Account connected but sync failed. Tap 'Sync Accounts' to retry.");
+          } finally {
+            setConnecting(false);
+          }
+        },
+        onExit: (_exit: LinkExit) => {
+          setConnecting(false);
+        },
+      } as any);
     } catch {
       Alert.alert("Error", "Could not start bank connection. Please try again.");
       setConnecting(false);
     }
-  };
-
-  const handlePlaidSuccess = async (success: LinkSuccess) => {
-    setLinkToken(null);
-    try {
-      await api.post("/plaid/exchange", {
-        publicToken: success.publicToken,
-        institutionName: success.metadata.institution?.name ?? "Unknown Bank",
-      });
-      await api.post("/plaid/sync", {});
-      queryClient.invalidateQueries({ queryKey: ["accounts"] });
-      Alert.alert("Connected!", "Your bank account has been linked and transactions synced.");
-    } catch {
-      Alert.alert("Error", "Account connected but sync failed. Tap 'Sync Accounts' to retry.");
-    } finally {
-      setConnecting(false);
-    }
-  };
-
-  const handlePlaidExit = (_exit: LinkExit) => {
-    setLinkToken(null);
-    setConnecting(false);
   };
 
   const handleSync = () => syncMutation.mutate();
@@ -134,7 +132,8 @@ export default function ProfileScreen() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content}>
       <Text style={styles.title}>Profile</Text>
 
       <View style={styles.section}>
@@ -169,15 +168,6 @@ export default function ProfileScreen() {
             {connecting ? "Connecting…" : "+ Connect Bank Account"}
           </Text>
         </TouchableOpacity>
-        {linkToken && (
-          <PlaidLink
-            tokenConfig={{ token: linkToken, noLoadingState: false }}
-            onSuccess={handlePlaidSuccess}
-            onExit={handlePlaidExit}
-          >
-            <View />
-          </PlaidLink>
-        )}
         <TouchableOpacity
           style={[styles.syncButton, syncMutation.isPending && { opacity: 0.6 }]}
           onPress={handleSync}
@@ -217,6 +207,7 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       </View>
     </ScrollView>
+    </SafeAreaView>
   );
 }
 

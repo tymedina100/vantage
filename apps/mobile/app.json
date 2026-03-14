@@ -27,7 +27,6 @@
           "color": "#6C63FF"
         }
       ],
-      ["react-native-plaid-link-sdk", { "enableAnalytics": false }]
     ],
     "ios": {
       "supportsTablet": false,

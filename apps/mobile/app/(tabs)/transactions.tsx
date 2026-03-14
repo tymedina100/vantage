@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   RefreshControl,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { colors, spacing, radius, typography } from "@/lib/theme";
@@ -86,7 +87,7 @@ export default function TransactionsScreen() {
   });
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.header}>
         <Text style={styles.title}>Transactions</Text>
         <TextInput
@@ -126,7 +127,7 @@ export default function TransactionsScreen() {
           ) : null
         }
       />
-    </View>
+    </SafeAreaView>
   );
 }
 

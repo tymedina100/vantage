@@ -11,6 +11,11 @@ export async function POST(req: NextRequest) {
     return unauthorized();
   }
 
-  const linkToken = await createLinkToken(userId);
-  return ok({ linkToken });
+  try {
+    const linkToken = await createLinkToken(userId);
+    return ok({ linkToken });
+  } catch (e: any) {
+    console.error("Plaid link-token error:", e?.response?.data ?? e?.message ?? e);
+    return err("Failed to create link token");
+  }
 }
