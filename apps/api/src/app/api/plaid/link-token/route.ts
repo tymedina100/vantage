@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { createLinkToken } from "@/lib/plaid";
-import { ok, unauthorized } from "@/lib/response";
+import { ok, err, unauthorized } from "@/lib/response";
 
 export async function POST(req: NextRequest) {
   let userId: string;

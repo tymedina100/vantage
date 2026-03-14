@@ -179,7 +179,80 @@ function ContributionModal({ goal, visible, onClose }: { goal: GoalWithProgress;
   );
 }
 
-function GoalCard({ goal }: { goal: GoalWithProgress }) {
+function EditGoalModal({ goal, visible, onClose }: { goal: GoalWithProgress | null; visible: boolean; onClose: () => void }) {
+  const [name, setName] = useState(goal?.name ?? "");
+  const [targetAmount, setTargetAmount] = useState(goal?.targetAmount.toString() ?? "");
+  const [icon, setIcon] = useState(goal?.icon ?? "🎯");
+  const [targetDate, setTargetDate] = useState(goal?.targetDate ? new Date(goal.targetDate).toISOString().split("T")[0] : "");
+  const queryClient = useQueryClient();
+
+  const mutation = useMutation({
+    mutationFn: (data: object) => api.patch(`/goals/${goal!.id}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["goals"] });
+      onClose();
+    },
+    onError: (e: unknown) => {
+      Alert.alert("Error", e instanceof Error ? e.message : "Could not update goal.");
+    },
+  });
+
+  const handleSubmit = () => {
+    if (!name.trim()) return Alert.alert("Name required", "Please enter a goal name.");
+    const amount = parseFloat(targetAmount);
+    if (!amount || amount <= 0) return Alert.alert("Invalid amount", "Please enter a target amount.");
+
+    let parsedDate: string | null | undefined;
+    if (targetDate.trim()) {
+      const d = new Date(targetDate.trim());
+      if (isNaN(d.getTime())) return Alert.alert("Invalid date", "Use format YYYY-MM-DD.");
+      parsedDate = d.toISOString();
+    } else {
+      parsedDate = null;
+    }
+
+    mutation.mutate({ name: name.trim(), targetAmount: amount, icon, targetDate: parsedDate });
+  };
+
+  if (!goal) return null;
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlay}>
+        <ScrollView style={styles.modalSheet} contentContainerStyle={{ paddingBottom: spacing.xxl }} keyboardShouldPersistTaps="handled">
+          <Text style={styles.modalTitle}>Edit Goal</Text>
+
+          <Text style={styles.inputLabel}>Goal Name</Text>
+          <TextInput style={styles.input} placeholder="e.g. Emergency Fund" placeholderTextColor={colors.textDim} value={name} onChangeText={setName} autoFocus />
+
+          <Text style={styles.inputLabel}>Target Amount</Text>
+          <TextInput style={styles.input} placeholder="0" placeholderTextColor={colors.textDim} keyboardType="decimal-pad" value={targetAmount} onChangeText={setTargetAmount} />
+
+          <Text style={styles.inputLabel}>Icon</Text>
+          <View style={styles.iconRow}>
+            {PRESET_ICONS.map((e) => (
+              <TouchableOpacity key={e} style={[styles.iconOption, icon === e && styles.iconOptionActive]} onPress={() => setIcon(e)}>
+                <Text style={{ fontSize: 22 }}>{e}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={styles.inputLabel}>Target Date <Text style={styles.optional}>(optional, YYYY-MM-DD)</Text></Text>
+          <TextInput style={styles.input} placeholder="2025-12-31" placeholderTextColor={colors.textDim} value={targetDate} onChangeText={setTargetDate} keyboardType="numbers-and-punctuation" />
+
+          <TouchableOpacity style={[styles.submitButton, mutation.isPending && styles.buttonDisabled]} onPress={handleSubmit} disabled={mutation.isPending}>
+            <Text style={styles.submitButtonText}>{mutation.isPending ? "Saving..." : "Save Changes"}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
+            <Text style={styles.cancelButtonText}>Cancel</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+function GoalCard({ goal, onEdit, onDelete }: { goal: GoalWithProgress; onEdit: () => void; onDelete: () => void }) {
   const [contributionVisible, setContributionVisible] = useState(false);
   const color = GOAL_TYPE_COLORS[goal.type] ?? colors.primary;
   const remaining = goal.targetAmount - goal.currentAmount;
@@ -193,6 +266,14 @@ function GoalCard({ goal }: { goal: GoalWithProgress }) {
             <Text style={styles.goalIcon}>{goal.icon ?? "🎯"}</Text>
             <Text style={styles.goalName}>{goal.name}</Text>
             <Text style={styles.goalType}>{goal.type.replace("_", " ")}</Text>
+          </View>
+          <View style={styles.goalActions}>
+            <TouchableOpacity onPress={onEdit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={{ fontSize: 16 }}>✏️</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={onDelete} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={{ fontSize: 16 }}>🗑️</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -245,10 +326,30 @@ function GoalCard({ goal }: { goal: GoalWithProgress }) {
 
 export default function GoalsScreen() {
   const [createVisible, setCreateVisible] = useState(false);
+  const [editGoal, setEditGoal] = useState<GoalWithProgress | null>(null);
+  const queryClient = useQueryClient();
+
   const { data: goals, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ["goals"],
     queryFn: () => api.get<GoalWithProgress[]>("/goals"),
   });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/goals/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["goals"] }),
+    onError: (e: unknown) => Alert.alert("Error", e instanceof Error ? e.message : "Could not delete goal."),
+  });
+
+  const handleDelete = (goal: GoalWithProgress) => {
+    Alert.alert(
+      "Delete Goal",
+      `Delete "${goal.name}"? This cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: () => deleteMutation.mutate(goal.id) },
+      ]
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -268,7 +369,14 @@ export default function GoalsScreen() {
         </View>
 
         {isLoading && <Text style={typography.body}>Loading goals...</Text>}
-        {goals?.map((g) => <GoalCard key={g.id} goal={g} />)}
+        {goals?.map((g) => (
+          <GoalCard
+            key={g.id}
+            goal={g}
+            onEdit={() => setEditGoal(g)}
+            onDelete={() => handleDelete(g)}
+          />
+        ))}
 
         {goals?.length === 0 && (
           <View style={styles.emptyState}>
@@ -285,6 +393,7 @@ export default function GoalsScreen() {
       </ScrollView>
 
       <CreateGoalModal visible={createVisible} onClose={() => setCreateVisible(false)} />
+      <EditGoalModal goal={editGoal} visible={!!editGoal} onClose={() => setEditGoal(null)} />
     </SafeAreaView>
   );
 }
@@ -299,6 +408,7 @@ const styles = StyleSheet.create({
   addButtonText: { color: colors.white, fontWeight: "700", fontSize: 14 },
   card: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.lg, marginBottom: spacing.md },
   cardHeader: { flexDirection: "row", gap: spacing.md, marginBottom: spacing.md, alignItems: "center" },
+  goalActions: { flexDirection: "row", gap: spacing.sm, alignItems: "center" },
   cardInfo: { flex: 1 },
   goalIcon: { fontSize: 20, marginBottom: 2 },
   goalName: { ...typography.h3, marginBottom: 2 },

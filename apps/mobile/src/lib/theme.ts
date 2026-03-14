@@ -1,23 +1,26 @@
 export const colors = {
-  // Backgrounds
-  bg: "#0F0F0F",
-  surface: "#1A1A1A",
-  surfaceAlt: "#242424",
-  border: "#2E2E2E",
+  // Backgrounds — deep navy base (premium, trust-inducing)
+  bg: "#0B0F1A",
+  surface: "#141927",
+  surfaceAlt: "#1C2333",
+  border: "#252D3D",
 
-  // Brand
-  primary: "#6C63FF",
-  primaryDim: "#3D3875",
+  // Brand — emerald green (growth, money, progress)
+  primary: "#34D399",
+  primaryDim: "#064E3B",
 
   // Text
-  text: "#F5F5F5",
-  textMuted: "#888888",
-  textDim: "#555555",
+  text: "#F1F5F9",
+  textMuted: "#94A3B8",
+  textDim: "#475569",
 
   // Semantic
   success: "#22C55E",
   warning: "#F59E0B",
   danger: "#EF4444",
+
+  // Achievement accent — amber/gold for streaks & milestones
+  gold: "#FBBF24",
 
   // Budget states (loss aversion color progression)
   budgetSafe: "#22C55E",    // >50% remaining

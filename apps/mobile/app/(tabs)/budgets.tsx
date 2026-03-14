@@ -42,7 +42,7 @@ function getLossAversionMessage(b: BudgetWithSpent): { text: string; urgent: boo
   return { text: `$${b.remaining.toFixed(0)} remaining. You're on track.`, urgent: false };
 }
 
-function BudgetCard({ budget }: { budget: BudgetWithSpent }) {
+function BudgetCard({ budget, onEdit, onDelete }: { budget: BudgetWithSpent; onEdit: () => void; onDelete: () => void }) {
   const color = getBudgetColor(budget.percentUsed);
   const { text, urgent } = getLossAversionMessage(budget);
 
@@ -53,7 +53,15 @@ function BudgetCard({ budget }: { budget: BudgetWithSpent }) {
           <Text style={styles.categoryIcon}>{budget.categoryIcon}</Text>
           <Text style={styles.categoryName}>{budget.categoryName}</Text>
         </View>
-        <Text style={styles.budgetTotal}>{formatCurrency(budget.amount)}/mo</Text>
+        <View style={styles.cardActions}>
+          <Text style={styles.budgetTotal}>{formatCurrency(budget.amount)}/mo</Text>
+          <TouchableOpacity onPress={onEdit} style={styles.actionButton} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Text style={styles.actionButtonText}>✏️</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={onDelete} style={styles.actionButton} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Text style={styles.actionButtonText}>🗑️</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <Text style={[styles.remainingAmount, { color }]}>
@@ -85,6 +93,76 @@ function BudgetCard({ budget }: { budget: BudgetWithSpent }) {
         </View>
       )}
     </View>
+  );
+}
+
+function EditBudgetModal({ budget, visible, onClose }: { budget: BudgetWithSpent | null; visible: boolean; onClose: () => void }) {
+  const [amount, setAmount] = useState(budget?.amount.toString() ?? "");
+  const [period, setPeriod] = useState<"MONTHLY" | "WEEKLY">((budget?.period as "MONTHLY" | "WEEKLY") ?? "MONTHLY");
+  const queryClient = useQueryClient();
+
+  // Sync state when budget changes
+  const prevBudgetId = budget?.id;
+  if (budget && budget.id !== prevBudgetId) {
+    setAmount(budget.amount.toString());
+    setPeriod(budget.period as "MONTHLY" | "WEEKLY");
+  }
+
+  const mutation = useMutation({
+    mutationFn: (data: object) => api.patch(`/budgets/${budget!.id}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["budgets"] });
+      onClose();
+    },
+    onError: (e: unknown) => {
+      Alert.alert("Error", e instanceof Error ? e.message : "Could not update budget.");
+    },
+  });
+
+  const handleSubmit = () => {
+    const parsed = parseFloat(amount);
+    if (!parsed || parsed <= 0) return Alert.alert("Invalid amount", "Please enter a budget amount.");
+    mutation.mutate({ amount: parsed, period });
+  };
+
+  if (!budget) return null;
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlay}>
+        <View style={styles.modalSheet}>
+          <Text style={styles.modalTitle}>Edit Budget</Text>
+          <Text style={[typography.bodySmall, { marginBottom: spacing.md }]}>{budget.categoryIcon} {budget.categoryName}</Text>
+
+          <Text style={styles.inputLabel}>Monthly Amount</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="0"
+            placeholderTextColor={colors.textDim}
+            keyboardType="decimal-pad"
+            value={amount}
+            onChangeText={setAmount}
+            autoFocus
+          />
+
+          <Text style={styles.inputLabel}>Period</Text>
+          <View style={styles.periodRow}>
+            {(["MONTHLY", "WEEKLY"] as const).map((p) => (
+              <TouchableOpacity key={p} style={[styles.periodOption, period === p && styles.periodOptionActive]} onPress={() => setPeriod(p)}>
+                <Text style={[styles.periodOptionText, period === p && styles.periodOptionTextActive]}>{p.charAt(0) + p.slice(1).toLowerCase()}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <TouchableOpacity style={[styles.submitButton, mutation.isPending && styles.buttonDisabled]} onPress={handleSubmit} disabled={mutation.isPending}>
+            <Text style={styles.submitButtonText}>{mutation.isPending ? "Saving..." : "Save Changes"}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
+            <Text style={styles.cancelButtonText}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
   );
 }
 
@@ -175,10 +253,30 @@ function CreateBudgetModal({ visible, onClose }: { visible: boolean; onClose: ()
 
 export default function BudgetsScreen() {
   const [createVisible, setCreateVisible] = useState(false);
+  const [editBudget, setEditBudget] = useState<BudgetWithSpent | null>(null);
+  const queryClient = useQueryClient();
+
   const { data: budgets, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ["budgets"],
     queryFn: () => api.get<BudgetWithSpent[]>("/budgets"),
   });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/budgets/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["budgets"] }),
+    onError: (e: unknown) => Alert.alert("Error", e instanceof Error ? e.message : "Could not delete budget."),
+  });
+
+  const handleDelete = (budget: BudgetWithSpent) => {
+    Alert.alert(
+      "Delete Budget",
+      `Delete the ${budget.categoryName} budget? This cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: () => deleteMutation.mutate(budget.id) },
+      ]
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -198,7 +296,14 @@ export default function BudgetsScreen() {
         </View>
 
         {isLoading && <Text style={typography.body}>Loading budgets...</Text>}
-        {budgets?.map((b) => <BudgetCard key={b.id} budget={b} />)}
+        {budgets?.map((b) => (
+          <BudgetCard
+            key={b.id}
+            budget={b}
+            onEdit={() => setEditBudget(b)}
+            onDelete={() => handleDelete(b)}
+          />
+        ))}
 
         {budgets?.length === 0 && (
           <View style={styles.emptyState}>
@@ -215,6 +320,7 @@ export default function BudgetsScreen() {
       </ScrollView>
 
       <CreateBudgetModal visible={createVisible} onClose={() => setCreateVisible(false)} />
+      <EditBudgetModal budget={editBudget} visible={!!editBudget} onClose={() => setEditBudget(null)} />
     </SafeAreaView>
   );
 }
@@ -229,6 +335,9 @@ const styles = StyleSheet.create({
   addButtonText: { color: colors.white, fontWeight: "700", fontSize: 14 },
   card: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.lg, marginBottom: spacing.md },
   cardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.md },
+  cardActions: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  actionButton: { padding: 2 },
+  actionButtonText: { fontSize: 16 },
   categoryTag: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
   categoryIcon: { fontSize: 20 },
   categoryName: { ...typography.label },

@@ -20,7 +20,8 @@ const PLAID_CATEGORY_MAP: Record<string, { name: string; icon: string; color: st
   OTHER: { name: "Other", icon: "📦", color: "#CCD1D1" },
 };
 
-const categoryCache = new Map<string, string>();
+const CACHE_TTL_MS = 3_600_000; // 1 hour
+const categoryCache = new Map<string, { id: string; cachedAt: number }>();
 
 export async function mapPlaidCategory(
   plaidCategory: string | null,
@@ -30,7 +31,8 @@ export async function mapPlaidCategory(
   const mapped = PLAID_CATEGORY_MAP[key] ?? PLAID_CATEGORY_MAP.OTHER;
 
   const cacheKey = `${userId}:${mapped.name}`;
-  if (categoryCache.has(cacheKey)) return categoryCache.get(cacheKey)!;
+  const cached = categoryCache.get(cacheKey);
+  if (cached && Date.now() - cached.cachedAt < CACHE_TTL_MS) return cached.id;
 
   // Find or create system category
   let category = await prisma.category.findFirst({
@@ -43,7 +45,7 @@ export async function mapPlaidCategory(
     });
   }
 
-  categoryCache.set(cacheKey, category.id);
+  categoryCache.set(cacheKey, { id: category.id, cachedAt: Date.now() });
   return category.id;
 }
 

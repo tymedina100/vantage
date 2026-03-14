@@ -48,7 +48,7 @@ export default function RegisterScreen() {
     >
       <View style={styles.header}>
         <Text style={styles.title}>Create Account</Text>
-        <Text style={styles.subtitle}>Start your path to financial clarity.</Text>
+        <Text style={styles.subtitle}>Build wealth. Break habits. Own your future.</Text>
       </View>
 
       <View style={styles.form}>
