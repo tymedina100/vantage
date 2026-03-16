@@ -5,7 +5,7 @@
     "buildCommand": "pnpm install --no-frozen-lockfile && pnpm --filter @finance/db db:generate && pnpm --filter @finance/api build"
   },
   "deploy": {
-    "startCommand": "pnpm --filter @finance/api start",
+    "startCommand": "pnpm --filter @finance/db db:migrate:deploy && pnpm --filter @finance/api start",
     "restartPolicyType": "ON_FAILURE"
   }
 }
