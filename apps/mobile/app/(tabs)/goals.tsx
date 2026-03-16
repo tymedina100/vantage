@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -185,6 +185,15 @@ function EditGoalModal({ goal, visible, onClose }: { goal: GoalWithProgress | nu
   const [icon, setIcon] = useState(goal?.icon ?? "🎯");
   const [targetDate, setTargetDate] = useState(goal?.targetDate ? new Date(goal.targetDate).toISOString().split("T")[0] : "");
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (goal) {
+      setName(goal.name);
+      setTargetAmount(goal.targetAmount.toString());
+      setIcon(goal.icon ?? "🎯");
+      setTargetDate(goal.targetDate ? new Date(goal.targetDate).toISOString().split("T")[0] : "");
+    }
+  }, [goal]);
 
   const mutation = useMutation({
     mutationFn: (data: object) => api.patch(`/goals/${goal!.id}`, data),

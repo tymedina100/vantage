@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -101,12 +101,12 @@ function EditBudgetModal({ budget, visible, onClose }: { budget: BudgetWithSpent
   const [period, setPeriod] = useState<"MONTHLY" | "WEEKLY">((budget?.period as "MONTHLY" | "WEEKLY") ?? "MONTHLY");
   const queryClient = useQueryClient();
 
-  // Sync state when budget changes
-  const prevBudgetId = budget?.id;
-  if (budget && budget.id !== prevBudgetId) {
-    setAmount(budget.amount.toString());
-    setPeriod(budget.period as "MONTHLY" | "WEEKLY");
-  }
+  useEffect(() => {
+    if (budget) {
+      setAmount(budget.amount.toString());
+      setPeriod(budget.period as "MONTHLY" | "WEEKLY");
+    }
+  }, [budget]);
 
   const mutation = useMutation({
     mutationFn: (data: object) => api.patch(`/budgets/${budget!.id}`, data),
