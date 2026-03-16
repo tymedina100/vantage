@@ -38,7 +38,7 @@ export default function OnboardingWelcome() {
     try {
       const { linkToken: token } = await api.post<{ linkToken: string }>("/plaid/link-token", {});
       openLink({
-        tokenConfig: { token, noLoadingState: false },
+        tokenConfig: { token, noLoadingState: false, redirectUri: "vantage://plaid-oauth" },
         onSuccess: async (success: LinkSuccess) => {
           try {
             await api.post("/plaid/exchange", {
