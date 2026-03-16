@@ -26,7 +26,8 @@
           "icon": "./assets/notification-icon.png",
           "color": "#34D399"
         }
-      ]
+      ],
+      "expo-font"
     ],
     "ios": {
       "supportsTablet": false,
@@ -43,6 +44,7 @@
         "android.permission.USE_FINGERPRINT"
       ]
     },
+    "newArchEnabled": true,
     "scheme": "vantage",
     "experiments": {
       "typedRoutes": true
