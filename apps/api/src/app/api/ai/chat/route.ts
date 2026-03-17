@@ -122,7 +122,7 @@ The user's current financial snapshot:
     async start(controller) {
       try {
         const response = anthropic.messages.stream({
-          model: "claude-3-haiku-20240307",
+          model: "claude-3-5-sonnet-20241022",
           max_tokens: 512,
           system: systemPrompt,
           messages,
@@ -142,6 +142,8 @@ The user's current financial snapshot:
         controller.close();
       } catch (e) {
         const msg = e instanceof Error ? e.message : "AI error";
+        // Log full error details to server logs for debugging
+        console.error("[AI chat] Anthropic error:", e);
         controller.enqueue(
           new TextEncoder().encode(`data: ${JSON.stringify({ error: msg })}\n\n`)
         );
