@@ -72,6 +72,13 @@ export default function TabLayout() {
           tabBarIcon: ({ focused }) => <TabIcon name="person" focused={focused} />,
         }}
       />
+      <Tabs.Screen
+        name="assistant"
+        options={{
+          title: "AI",
+          tabBarIcon: ({ focused }) => <TabIcon name="sparkles" focused={focused} />,
+        }}
+      />
     </Tabs>
   );
 }

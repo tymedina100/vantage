@@ -25,6 +25,7 @@ model User {
   streaks               Streak[]
   nudges                Nudge[]
   passwordResetTokens   PasswordResetToken[]
+  netWorthSnapshots     NetWorthSnapshot[]
 }
 
 enum AccountType {
@@ -216,6 +217,18 @@ model PasswordResetToken {
   createdAt DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model NetWorthSnapshot {
+  id       String   @id @default(cuid())
+  userId   String
+  netWorth Decimal  @db.Decimal(12, 2)
+  date     DateTime @db.Date
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId, date])
 }
 
 // Stores Plaid access tokens per institution (item)
