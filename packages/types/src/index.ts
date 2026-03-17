@@ -84,11 +84,28 @@ export interface StreakStatus {
   isActiveToday: boolean;
 }
 
+// Account summary
+export interface AccountSummary {
+  id: string;
+  name: string;
+  type: "CHECKING" | "SAVINGS" | "CREDIT" | "INVESTMENT" | "LOAN" | "OTHER";
+  currentBalance: number;
+  institutionName: string | null;
+}
+
+// Net worth history point
+export interface NetWorthPoint {
+  date: string; // YYYY-MM-DD
+  value: number;
+}
+
 // Dashboard summary
 export interface DashboardSummary {
   netWorth: number;
   monthlyIncome: number;
   monthlySpending: number;
+  accounts: AccountSummary[];
+  netWorthHistory: NetWorthPoint[];
   budgets: BudgetWithSpent[];
   goals: GoalWithProgress[];
   streaks: StreakStatus[];

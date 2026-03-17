@@ -73,6 +73,24 @@ export async function GET(req: NextRequest) {
     return sum + (a.type === "CREDIT" || a.type === "LOAN" ? -bal : bal);
   }, 0);
 
+  // Upsert today's snapshot + fetch 90-day history
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const ninetyDaysAgo = new Date(today);
+  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+
+  const [, netWorthSnapshots] = await Promise.all([
+    prisma.netWorthSnapshot.upsert({
+      where: { userId_date: { userId, date: today } },
+      create: { userId, date: today, netWorth },
+      update: { netWorth },
+    }),
+    prisma.netWorthSnapshot.findMany({
+      where: { userId, date: { gte: ninetyDaysAgo } },
+      orderBy: { date: "asc" },
+    }),
+  ]);
+
   // Monthly spending
   const spendingAgg = await prisma.transaction.aggregate({
     where: {
@@ -154,10 +172,25 @@ export async function GET(req: NextRequest) {
       : false,
   }));
 
+  const accountsResult = accounts.map((a) => ({
+    id: a.id,
+    name: a.name,
+    type: a.type as "CHECKING" | "SAVINGS" | "CREDIT" | "INVESTMENT" | "LOAN" | "OTHER",
+    currentBalance: a.currentBalance.toNumber(),
+    institutionName: a.institutionName ?? null,
+  }));
+
+  const netWorthHistory = netWorthSnapshots.map((s) => ({
+    date: s.date.toISOString().split("T")[0],
+    value: s.netWorth.toNumber(),
+  }));
+
   return ok({
     netWorth,
     monthlyIncome: Math.abs(Number(incomeAgg._sum.amount ?? 0)),
     monthlySpending: Number(spendingAgg._sum.amount ?? 0),
+    accounts: accountsResult,
+    netWorthHistory,
     budgets: budgetsWithSpent,
     goals: goalsResult,
     streaks: streaksResult,

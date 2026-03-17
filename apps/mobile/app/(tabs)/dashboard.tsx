@@ -6,12 +6,16 @@ import {
   StyleSheet,
   RefreshControl,
   TouchableOpacity,
+  useWindowDimensions,
 } from "react-native";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { api } from "@/lib/api";
 import { colors, spacing, radius, typography } from "@/lib/theme";
+import { DashboardCard } from "@/components/DashboardCard";
+import { NetWorthChart } from "@/components/NetWorthChart";
+import { AccountsSection } from "@/components/AccountsSection";
 import type { DashboardSummary, BudgetWithSpent, StreakStatus, NudgeMessage } from "@finance/types";
 
 function formatCurrency(amount: number): string {
@@ -50,17 +54,16 @@ function SkeletonBox({ height, width, style }: { height: number; width?: number 
 function DashboardSkeleton() {
   return (
     <View style={styles.content}>
-      {/* Net worth card skeleton */}
-      <View style={[styles.netWorthCard, { gap: spacing.sm }]}>
-        <SkeletonBox height={14} width="40%" />
-        <SkeletonBox height={48} width="60%" />
+      <View style={[styles.heroCard, { gap: spacing.sm }]}>
+        <SkeletonBox height={14} width="35%" />
+        <SkeletonBox height={52} width="55%" />
+        <SkeletonBox height={90} />
         <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: spacing.xs }}>
           <SkeletonBox height={28} width="30%" />
           <SkeletonBox height={28} width="30%" />
         </View>
       </View>
-      {/* Streak skeletons */}
-      <View style={{ flexDirection: "row", gap: spacing.sm, marginBottom: spacing.lg }}>
+      <View style={{ flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md }}>
         {[1, 2, 3].map((i) => (
           <View key={i} style={[styles.streakBadge, { gap: spacing.xs }]}>
             <SkeletonBox height={28} width={40} />
@@ -68,11 +71,10 @@ function DashboardSkeleton() {
           </View>
         ))}
       </View>
-      {/* Budget skeletons */}
       {[1, 2].map((i) => (
         <View key={i} style={[styles.budgetItem, { gap: spacing.sm }]}>
           <SkeletonBox height={16} width="50%" />
-          <SkeletonBox height={6} />
+          <SkeletonBox height={8} />
           <SkeletonBox height={12} width="40%" />
         </View>
       ))}
@@ -121,6 +123,8 @@ function NudgeCard({ nudge, onDismiss }: { nudge: NudgeMessage; onDismiss: () =>
 
 export default function DashboardScreen() {
   const qc = useQueryClient();
+  const { width } = useWindowDimensions();
+  const chartWidth = width - spacing.md * 2 - spacing.md * 2; // screen - outer padding - card padding
 
   const { data: dashboard, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ["dashboard"],
@@ -157,6 +161,13 @@ export default function DashboardScreen() {
   }
 
   const d = dashboard;
+  const history = d?.netWorthHistory ?? [];
+
+  // Month delta: compare first and last point in history
+  const monthDelta =
+    history.length >= 2
+      ? history[history.length - 1].value - history[0].value
+      : null;
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -171,39 +182,72 @@ export default function DashboardScreen() {
           />
         }
       >
-        {/* Net Worth */}
-        <View style={styles.netWorthCard}>
-          <Text style={styles.netWorthLabel}>Net Worth</Text>
-          <Text style={styles.netWorthAmount}>{formatCurrency(d?.netWorth ?? 0)}</Text>
+        {/* ── Hero Card ── */}
+        <View style={styles.heroCard}>
+          <Text style={styles.heroLabel}>Net Worth</Text>
+          <View style={styles.heroAmountRow}>
+            <Text style={styles.heroAmount}>{formatCurrency(d?.netWorth ?? 0)}</Text>
+            {monthDelta !== null && (
+              <View style={[
+                styles.deltaBadge,
+                { backgroundColor: monthDelta >= 0 ? colors.primary + "22" : colors.danger + "22" },
+              ]}>
+                <Text style={[
+                  styles.deltaText,
+                  { color: monthDelta >= 0 ? colors.primary : colors.danger },
+                ]}>
+                  {monthDelta >= 0 ? "↑" : "↓"}{formatCurrency(Math.abs(monthDelta))}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {/* Net Worth Chart */}
+          <View style={styles.chartContainer}>
+            <NetWorthChart data={history} width={chartWidth} height={100} />
+          </View>
+
+          {/* Income / Spending */}
           <View style={styles.cashFlowRow}>
-            <View>
-              <Text style={styles.cashFlowLabel}>Income</Text>
-              <Text style={[styles.cashFlowAmount, { color: colors.success }]}>
-                +{formatCurrency(d?.monthlyIncome ?? 0)}
-              </Text>
+            <View style={styles.cashFlowItem}>
+              <View style={[styles.cashFlowDot, { backgroundColor: colors.success }]} />
+              <View>
+                <Text style={styles.cashFlowLabel}>Income</Text>
+                <Text style={[styles.cashFlowAmount, { color: colors.success }]}>
+                  +{formatCurrency(d?.monthlyIncome ?? 0)}
+                </Text>
+              </View>
             </View>
-            <View style={{ alignItems: "flex-end" }}>
-              <Text style={styles.cashFlowLabel}>Spending</Text>
-              <Text style={[styles.cashFlowAmount, { color: colors.danger }]}>
-                -{formatCurrency(d?.monthlySpending ?? 0)}
-              </Text>
+            <View style={styles.cashFlowDivider} />
+            <View style={styles.cashFlowItem}>
+              <View style={[styles.cashFlowDot, { backgroundColor: colors.danger }]} />
+              <View>
+                <Text style={styles.cashFlowLabel}>Spending</Text>
+                <Text style={[styles.cashFlowAmount, { color: colors.danger }]}>
+                  -{formatCurrency(d?.monthlySpending ?? 0)}
+                </Text>
+              </View>
             </View>
           </View>
         </View>
 
-        {/* Nudges */}
+        {/* ── Accounts ── */}
+        {d?.accounts && d.accounts.length > 0 && (
+          <AccountsSection accounts={d.accounts} />
+        )}
+
+        {/* ── Nudges ── */}
         {nudges && nudges.length > 0 && (
-          <View style={styles.section}>
+          <View style={{ marginBottom: spacing.md }}>
             {nudges.slice(0, 2).map((n) => (
               <NudgeCard key={n.id} nudge={n} onDismiss={() => dismissNudge.mutate(n.id)} />
             ))}
           </View>
         )}
 
-        {/* Streaks */}
+        {/* ── Streaks ── */}
         {d?.streaks && d.streaks.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Streaks</Text>
+          <DashboardCard title="Streaks">
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View style={styles.streaksRow}>
                 {d.streaks.map((s) => (
@@ -211,12 +255,12 @@ export default function DashboardScreen() {
                 ))}
               </View>
             </ScrollView>
-          </View>
+          </DashboardCard>
         )}
 
-        {/* Budget Overview — top 3 + see all */}
+        {/* ── Budget Overview ── */}
         {d?.budgets && d.budgets.length > 0 && (
-          <View style={styles.section}>
+          <DashboardCard>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Budgets</Text>
               <TouchableOpacity onPress={() => router.push("/(tabs)/budgets")}>
@@ -251,12 +295,12 @@ export default function DashboardScreen() {
                 <Text style={styles.showMoreText}>+{d.budgets.length - 3} more budgets</Text>
               </TouchableOpacity>
             )}
-          </View>
+          </DashboardCard>
         )}
 
-        {/* Goals */}
+        {/* ── Goals ── */}
         {d?.goals && d.goals.length > 0 && (
-          <View style={styles.section}>
+          <DashboardCard>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Goals</Text>
               <TouchableOpacity onPress={() => router.push("/(tabs)/goals")}>
@@ -290,46 +334,43 @@ export default function DashboardScreen() {
                 </View>
               </View>
             ))}
-          </View>
+          </DashboardCard>
         )}
 
-        {/* Impulse Spending */}
+        {/* ── Impulse Spending ── */}
         {d?.impulse != null && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Impulse Spending</Text>
-            <View style={styles.impulseCard}>
-              <View style={styles.impulseRow}>
-                <View>
-                  <Text style={styles.impulseCount}>
-                    {d.impulse.count} impulse {d.impulse.count === 1 ? "purchase" : "purchases"}
-                  </Text>
-                  <Text style={styles.impulseTotal}>{formatCurrency(d.impulse.total)} this month</Text>
-                </View>
-                {(d.impulse.previousWeekTotal > 0 || d.impulse.total > 0) && (
-                  <View style={styles.impulseTrend}>
-                    <Text style={[
-                      styles.impulseTrendArrow,
-                      { color: d.impulse.total >= d.impulse.previousWeekTotal ? colors.danger : colors.success },
-                    ]}>
-                      {d.impulse.total >= d.impulse.previousWeekTotal ? "▲" : "▼"}
-                    </Text>
-                    <Text style={[
-                      styles.impulseTrendLabel,
-                      { color: d.impulse.total >= d.impulse.previousWeekTotal ? colors.danger : colors.success },
-                    ]}>
-                      {formatCurrency(Math.abs(d.impulse.total - d.impulse.previousWeekTotal))}{" "}
-                      {d.impulse.total >= d.impulse.previousWeekTotal ? "more" : "less"} than last week
-                    </Text>
-                  </View>
-                )}
-              </View>
-              {d.impulse.count > 0 && (
-                <Text style={styles.impulseNote}>
-                  That&apos;s {formatCurrency(d.impulse.total)} that didn&apos;t go toward your goals.
+          <DashboardCard title="Impulse Spending" accent={colors.warning}>
+            <View style={styles.impulseRow}>
+              <View>
+                <Text style={styles.impulseCount}>
+                  {d.impulse.count} impulse {d.impulse.count === 1 ? "purchase" : "purchases"}
                 </Text>
+                <Text style={styles.impulseTotal}>{formatCurrency(d.impulse.total)} this month</Text>
+              </View>
+              {(d.impulse.previousWeekTotal > 0 || d.impulse.total > 0) && (
+                <View style={styles.impulseTrend}>
+                  <Text style={[
+                    styles.impulseTrendArrow,
+                    { color: d.impulse.total >= d.impulse.previousWeekTotal ? colors.danger : colors.success },
+                  ]}>
+                    {d.impulse.total >= d.impulse.previousWeekTotal ? "▲" : "▼"}
+                  </Text>
+                  <Text style={[
+                    styles.impulseTrendLabel,
+                    { color: d.impulse.total >= d.impulse.previousWeekTotal ? colors.danger : colors.success },
+                  ]}>
+                    {formatCurrency(Math.abs(d.impulse.total - d.impulse.previousWeekTotal))}{" "}
+                    {d.impulse.total >= d.impulse.previousWeekTotal ? "more" : "less"} than last week
+                  </Text>
+                </View>
               )}
             </View>
-          </View>
+            {d.impulse.count > 0 && (
+              <Text style={styles.impulseNote}>
+                That&apos;s {formatCurrency(d.impulse.total)} that didn&apos;t go toward your goals.
+              </Text>
+            )}
+          </DashboardCard>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -341,26 +382,97 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.md, paddingBottom: spacing.xxl },
-  netWorthCard: {
+
+  // Hero card
+  heroCard: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
-    padding: spacing.lg,
+    padding: spacing.md,
     marginBottom: spacing.md,
-    borderLeftWidth: 4,
-    borderLeftColor: colors.primary,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderTopWidth: 3,
+    borderTopColor: colors.primary,
   },
-  netWorthLabel: { ...typography.bodySmall, marginBottom: spacing.xs },
-  netWorthAmount: { ...typography.numberLarge, marginBottom: spacing.md },
-  cashFlowRow: { flexDirection: "row", justifyContent: "space-between" },
-  cashFlowLabel: { ...typography.caption },
-  cashFlowAmount: { ...typography.h3 },
-  section: { marginBottom: spacing.lg },
-  sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.md },
-  sectionTitle: { ...typography.h3 },
+  heroLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: colors.textDim,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: spacing.xs,
+  },
+  heroAmountRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  heroAmount: {
+    fontSize: 42,
+    fontWeight: "700",
+    color: colors.text,
+  },
+  deltaBadge: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: radius.full,
+  },
+  deltaText: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  chartContainer: {
+    marginBottom: spacing.sm,
+  },
+  cashFlowRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: spacing.sm,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    gap: spacing.md,
+  },
+  cashFlowItem: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  cashFlowDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  cashFlowDivider: {
+    width: 1,
+    height: 32,
+    backgroundColor: colors.border,
+  },
+  cashFlowLabel: {
+    fontSize: 11,
+    color: colors.textDim,
+  },
+  cashFlowAmount: {
+    fontSize: 16,
+    fontWeight: "700",
+  },
+
+  // Section
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: spacing.sm,
+  },
+  sectionTitle: { ...typography.h3, fontSize: 16 },
   seeAll: { ...typography.bodySmall, color: colors.primary, fontWeight: "600" },
+
+  // Streaks
   streaksRow: { flexDirection: "row", gap: spacing.sm },
   streakBadge: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceAlt,
     borderRadius: radius.md,
     padding: spacing.md,
     alignItems: "center",
@@ -371,9 +483,11 @@ const styles = StyleSheet.create({
   streakCount: { fontSize: 28, fontWeight: "700", marginBottom: 2 },
   streakLabel: { ...typography.caption, textAlign: "center" },
   streakWarning: { color: colors.warning, fontSize: 10, marginTop: 2, fontWeight: "700" },
+
+  // Nudge
   nudgeCard: {
     backgroundColor: colors.surface,
-    borderRadius: radius.md,
+    borderRadius: radius.lg,
     padding: spacing.md,
     marginBottom: spacing.sm,
     flexDirection: "row",
@@ -387,10 +501,9 @@ const styles = StyleSheet.create({
   nudgeIcon: { fontSize: 16, marginTop: 1 },
   nudgeText: { flex: 1, color: colors.text, fontSize: 14, lineHeight: 20 },
   nudgeDismiss: { color: colors.textDim, fontWeight: "700", fontSize: 14 },
+
+  // Budget
   budgetItem: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    padding: spacing.md,
     marginBottom: spacing.sm,
   },
   budgetHeader: {
@@ -400,17 +513,17 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   budgetIcon: { fontSize: 18 },
-  budgetName: { ...typography.label, flex: 1 },
-  budgetAmount: { fontSize: 13, fontWeight: "600" },
+  budgetName: { ...typography.label, flex: 1, fontSize: 13 },
+  budgetAmount: { fontSize: 12, fontWeight: "600" },
   budgetBarBg: {
-    height: 6,
+    height: 8,
     backgroundColor: colors.surfaceAlt,
     borderRadius: radius.full,
     overflow: "hidden",
     marginBottom: spacing.xs,
   },
   budgetBarFill: { height: "100%", borderRadius: radius.full },
-  budgetMessage: { ...typography.caption, marginTop: spacing.xs },
+  budgetMessage: { ...typography.caption },
   showMoreButton: {
     alignItems: "center",
     padding: spacing.sm,
@@ -418,12 +531,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     borderStyle: "dashed",
+    marginTop: spacing.xs,
   },
   showMoreText: { ...typography.caption, color: colors.textMuted },
+
+  // Goals
   goalCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    padding: spacing.md,
     marginBottom: spacing.sm,
   },
   goalHeader: {
@@ -432,15 +545,12 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     marginBottom: spacing.sm,
   },
-  goalIcon: { fontSize: 24 },
-  goalName: { ...typography.label },
+  goalIcon: { fontSize: 22 },
+  goalName: { ...typography.label, fontSize: 13 },
   goalProgress: { ...typography.caption, marginTop: 2 },
-  goalPercent: { ...typography.h3 },
-  impulseCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    padding: spacing.md,
-  },
+  goalPercent: { fontSize: 16, fontWeight: "700" },
+
+  // Impulse
   impulseRow: {
     flexDirection: "row",
     justifyContent: "space-between",
