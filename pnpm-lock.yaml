@@ -180,13 +180,13 @@ importers:
     dependencies:
       next:
         specifier: ^15.3.1
-        version: 15.5.13(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.4(react@19.1.0))(react@19.1.0)
+        version: 15.5.13(babel-plugin-react-compiler@1.0.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       react:
-        specifier: ^19.1.0
+        specifier: 19.1.0
         version: 19.1.0
       react-dom:
-        specifier: ^19.1.0
-        version: 19.2.4(react@19.1.0)
+        specifier: 19.1.0
+        version: 19.1.0(react@19.1.0)
     devDependencies:
       '@types/node':
         specifier: ^20
@@ -4310,6 +4310,11 @@ packages:
     resolution: {integrity: sha512-5m4nQKp+rZRb09LNH59GM4BxTh9251/ylbKIbpe7TpGxfJ+9kv6BLkLBXIjjspbgbnIBNqlI23tRnTWT0snUIw==}
     peerDependencies:
       react: ^18.3.1
+
+  react-dom@19.1.0:
+    resolution: {integrity: sha512-Xs1hdnE+DyKgeHJeJznQmYMIBG3TKIHJJT95Q58nHLSrElKlGQqDTR2HQ9fx5CN/Gk6Vh/kupBTDLU11/nDk/g==}
+    peerDependencies:
+      react: ^19.1.0
 
   react-dom@19.2.4:
     resolution: {integrity: sha512-AXJdLo8kgMbimY95O2aKQqsz2iWi9jMgKJhRBAxECE4IFxfcazB2LmzloIoibJI3C12IlY20+KFaLv+71bUJeQ==}
@@ -9663,14 +9668,14 @@ snapshots:
       - '@babel/core'
       - babel-plugin-macros
 
-  next@15.5.13(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.4(react@19.1.0))(react@19.1.0):
+  next@15.5.13(babel-plugin-react-compiler@1.0.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0):
     dependencies:
       '@next/env': 15.5.13
       '@swc/helpers': 0.5.15
       caniuse-lite: 1.0.30001777
       postcss: 8.4.31
       react: 19.1.0
-      react-dom: 19.2.4(react@19.1.0)
+      react-dom: 19.1.0(react@19.1.0)
       styled-jsx: 5.1.6(react@19.1.0)
     optionalDependencies:
       '@next/swc-darwin-arm64': 15.5.13
@@ -10035,6 +10040,11 @@ snapshots:
       loose-envify: 1.4.0
       react: 18.2.0
       scheduler: 0.23.2
+
+  react-dom@19.1.0(react@19.1.0):
+    dependencies:
+      react: 19.1.0
+      scheduler: 0.26.0
 
   react-dom@19.2.4(react@19.1.0):
     dependencies:
