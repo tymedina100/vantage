@@ -5,8 +5,8 @@ import { getAuthUser } from "@/lib/auth";
 import { ok, err, unauthorized, notFound } from "@/lib/response";
 
 const updateSchema = z.object({
-  categoryId: z.string().optional(),
-  note: z.string().optional(),
+  categoryId: z.string().nullable().optional(),
+  note: z.string().nullable().optional(),
   isImpulse: z.boolean().optional(),
   merchantName: z.string().optional(),
 });
