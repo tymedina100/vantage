@@ -8,6 +8,7 @@ import {
   ScrollView,
   Switch,
   Platform,
+  Linking,
 } from "react-native";
 import { router } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -301,6 +302,21 @@ export default function ProfileScreen() {
           <TouchableOpacity style={styles.navRow} onPress={() => router.push("/categories")}>
             <Text style={styles.navRowLabel}>Manage Categories</Text>
             <Text style={styles.navRowChevron}>›</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Beta Feedback */}
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>Beta</Text>
+          <TouchableOpacity
+            style={styles.syncButton}
+            onPress={() =>
+              Linking.openURL(
+                "https://docs.google.com/forms/d/1dW2YXhjQIkyngr-nVqlOwGr6tMiEtO7lIKjKKCP1Y54/viewform"
+              )
+            }
+          >
+            <Text style={styles.syncButtonText}>Share Feedback</Text>
           </TouchableOpacity>
         </View>
 
