@@ -103,7 +103,7 @@ export default function LoginScreen() {
 
   const handleEnableBiometric = async () => {
     const result = await LocalAuthentication.authenticateAsync({
-      promptMessage: `Enable ${biometricLabel} for Vantage`,
+      promptMessage: `Enable ${biometricLabel} for Worthlane`,
       fallbackLabel: "Cancel",
       disableDeviceFallback: true,
     });
@@ -119,8 +119,8 @@ export default function LoginScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <View style={styles.header}>
-        <Text style={styles.logo}>VANTAGE</Text>
-        <Text style={styles.tagline}>Build wealth. Break habits. Own your future.</Text>
+        <Text style={styles.logo}>Worthlane</Text>
+        <Text style={styles.tagline}>Your money, finally making sense.</Text>
       </View>
 
       <View style={styles.form}>

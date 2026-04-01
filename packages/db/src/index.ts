@@ -11,4 +11,12 @@ export const prisma =
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
 export * from "@prisma/client";
-export { NudgeType, StreakType, GoalType, AccountType, BudgetPeriodType } from "@prisma/client";
+export {
+  NudgeType,
+  StreakType,
+  GoalType,
+  AccountType,
+  AccountSource,
+  BudgetPeriodType,
+  PlaidItemStatus,
+} from "@prisma/client";

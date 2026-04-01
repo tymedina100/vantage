@@ -23,10 +23,10 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Generate Prisma client
-        run: pnpm --filter @finance/db exec prisma generate
+        run: pnpm --filter @worthlane/db exec prisma generate
 
       - name: Typecheck
-        run: pnpm --filter @finance/api exec tsc --noEmit
+        run: pnpm --filter @worthlane/api exec tsc --noEmit
 
       - name: Test
         run: pnpm test

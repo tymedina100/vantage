@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { prisma } from "@finance/db";
+import { prisma } from "@worthlane/db";
 import { verifyPassword, signAccessToken, signRefreshToken } from "@/lib/auth";
+import { captureServerEvent } from "@/lib/posthog";
 import { ok, err } from "@/lib/response";
 import { checkRateLimit, ipKey } from "@/lib/rate-limit";
 
@@ -28,6 +29,17 @@ export async function POST(req: NextRequest) {
 
   const accessToken = signAccessToken({ sub: user.id, email: user.email });
   const refreshToken = signRefreshToken(user.id);
+
+  await captureServerEvent({
+    distinctId: user.id,
+    event: "user logged in",
+    properties: {
+      method: "password",
+      $set: {
+        email: user.email,
+      },
+    },
+  });
 
   return ok({
     user: { id: user.id, email: user.email },

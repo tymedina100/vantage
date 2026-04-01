@@ -1,5 +1,6 @@
 import Expo, { ExpoPushMessage } from "expo-server-sdk";
-import { prisma } from "@finance/db";
+import { prisma } from "@worthlane/db";
+import { captureServerException } from "./sentry";
 
 const expo = new Expo();
 
@@ -26,12 +27,17 @@ export async function sendPushToUser(userId: string, message: string): Promise<v
   try {
     const [ticket] = await expo.sendPushNotificationsAsync([msg]);
     if (ticket.status === "error") {
-      // Token may be expired — clear it so we don't keep trying
+      // Token may be expired; clear it so we don't keep trying.
       if (ticket.details?.error === "DeviceNotRegistered") {
         await prisma.user.update({ where: { id: userId }, data: { pushToken: null } });
       }
     }
-  } catch {
-    // Non-fatal — nudge is still saved in DB
+  } catch (error) {
+    captureServerException(error, {
+      tags: { service: "expo-push" },
+      extra: { userId },
+    });
+
+    // Non-fatal; nudge is still saved in DB.
   }
 }

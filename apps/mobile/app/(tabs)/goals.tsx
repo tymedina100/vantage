@@ -16,7 +16,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "@/lib/api";
 import { colors, spacing, radius, typography } from "@/lib/theme";
-import type { GoalWithProgress } from "@finance/types";
+import type { GoalWithProgress } from "@worthlane/types";
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(amount);

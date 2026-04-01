@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { prisma } from "@finance/db";
+import { prisma } from "@worthlane/db";
 import { getAuthUser } from "@/lib/auth";
+import { captureServerEvent } from "@/lib/posthog";
 import { ok, err, unauthorized, notFound } from "@/lib/response";
 
 const createSchema = z.object({
@@ -41,6 +42,18 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       data: { currentAmount: { increment: amount } },
     }),
   ]);
+
+  await captureServerEvent({
+    distinctId: userId,
+    event: "goal contribution added",
+    properties: {
+      goalId: params.id,
+      contributionId: contribution.id,
+      amount,
+      hasNote: Boolean(note?.trim()),
+      goalProgressAmount: updatedGoal.currentAmount.toNumber(),
+    },
+  });
 
   return ok({ contribution, goal: updatedGoal }, 201);
 }

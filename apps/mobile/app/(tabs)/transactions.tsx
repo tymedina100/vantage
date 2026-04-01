@@ -1,420 +1,517 @@
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import {
-  View,
-  Text,
+  Alert,
   FlatList,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
+  Modal,
+  Pressable,
   RefreshControl,
   ScrollView,
-  Modal,
-  Switch,
-  KeyboardAvoidingView,
-  Platform,
-  Alert,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ApiError, api } from "@/lib/api";
+import {
+  AccountSummary,
+  AccountsResponse,
+  CategorySummary,
+  TransactionSummary,
+  TransactionsResponse,
+  formatShortDate,
+  formatSignedTransactionAmount,
+  toIsoDateInput,
+  toTransactionIsoDate,
+} from "@/lib/finance";
 import { colors, spacing, radius, typography } from "@/lib/theme";
-import type { Category } from "@finance/types";
 
-interface Transaction {
-  id: string;
-  amount: number;
+type ManualTransactionDraft = {
+  id?: string;
+  accountId: string;
+  amount: string;
+  flow: "expense" | "income";
   date: string;
-  merchantName: string | null;
-  note: string | null;
+  merchantName: string;
+  categoryId: string;
+  note: string;
   isImpulse: boolean;
-  category: { id: string; name: string; icon: string; color: string } | null;
-}
+};
 
-interface TransactionsResponse {
-  transactions: Transaction[];
-  total: number;
-}
+const emptyDraft: ManualTransactionDraft = {
+  accountId: "",
+  amount: "",
+  flow: "expense",
+  date: new Date().toISOString().slice(0, 10),
+  merchantName: "",
+  categoryId: "",
+  note: "",
+  isImpulse: false,
+};
 
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Math.abs(amount));
-}
-
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
-
-function formatDateLong(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString("en-US", { weekday: "short", month: "long", day: "numeric", year: "numeric" });
-}
-
-function getDateRange(range: "this_month" | "last_month" | "all") {
-  const now = new Date();
-  if (range === "this_month") {
-    return {
-      from: new Date(now.getFullYear(), now.getMonth(), 1).toISOString(),
-      to: now.toISOString(),
-    };
-  }
-  if (range === "last_month") {
-    const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
-    return { from: start.toISOString(), to: end.toISOString() };
-  }
-  return { from: null, to: null };
-}
-
-function buildUrl(
-  search: string,
-  categoryId: string | null,
-  dateRange: "this_month" | "last_month" | "all",
-  limit: number
-) {
-  const params = new URLSearchParams({ limit: limit.toString() });
-  if (search) params.set("search", search);
-  if (categoryId) params.set("categoryId", categoryId);
-  const { from, to } = getDateRange(dateRange);
-  if (from) params.set("from", from);
-  if (to) params.set("to", to);
-  return `/transactions?${params.toString()}`;
-}
-
-const DATE_RANGES = [
-  { value: "this_month", label: "This Month" },
-  { value: "last_month", label: "Last Month" },
-  { value: "all", label: "All Time" },
-] as const;
-
-// ─── Transaction Detail Bottom Sheet ──────────────────────────────────────────
-
-function TransactionDetailSheet({
-  tx,
-  categories,
-  visible,
-  onClose,
-}: {
-  tx: Transaction | null;
-  categories: Category[];
-  visible: boolean;
-  onClose: () => void;
-}) {
-  const [categoryId, setCategoryId] = useState<string | null>(null);
-  const [note, setNote] = useState("");
-  const [isImpulse, setIsImpulse] = useState(false);
-  const qc = useQueryClient();
-
-  useEffect(() => {
-    if (tx) {
-      setCategoryId(tx.category?.id ?? null);
-      setNote(tx.note ?? "");
-      setIsImpulse(tx.isImpulse);
+function transactionErrorMessage(error: unknown) {
+  if (error instanceof ApiError) {
+    if (error.code === "ACCOUNT_NOT_MANUAL") {
+      return "Choose a manual account for manual transactions.";
     }
-  }, [tx?.id]);
+    if (error.code === "TRANSACTION_NOT_DELETABLE") {
+      return "Imported Plaid transactions cannot be deleted.";
+    }
+    return error.message;
+  }
 
-  const mutation = useMutation({
-    mutationFn: (data: object) => api.patch(`/transactions/${tx!.id}`, data),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["transactions"] });
-      onClose();
-    },
-    onError: (e: unknown) =>
-      Alert.alert("Error", e instanceof Error ? e.message : "Could not update transaction."),
-  });
+  return error instanceof Error ? error.message : "Please try again.";
+}
 
-  if (!tx) return null;
-  const isExpense = tx.amount > 0;
-
+function ManualTransactionModal({
+  visible,
+  draft,
+  manualAccounts,
+  categories,
+  saving,
+  onChange,
+  onClose,
+  onSubmit,
+  onDelete,
+}: {
+  visible: boolean;
+  draft: ManualTransactionDraft;
+  manualAccounts: AccountSummary[];
+  categories: CategorySummary[];
+  saving: boolean;
+  onChange: (next: ManualTransactionDraft) => void;
+  onClose: () => void;
+  onSubmit: () => void;
+  onDelete: (() => void) | null;
+}) {
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={sheet.overlay}
-      >
-        <View style={sheet.container}>
-          {/* Header */}
-          <View style={sheet.header}>
-            <View style={[sheet.icon, { backgroundColor: `${tx.category?.color ?? colors.surfaceAlt}33` }]}>
-              <Text style={{ fontSize: 24 }}>{tx.category?.icon ?? "📦"}</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={sheet.merchant} numberOfLines={1}>
-                {tx.merchantName ?? "Unknown"}
-              </Text>
-              <Text style={sheet.date}>{formatDateLong(tx.date)}</Text>
-            </View>
-            <Text style={[sheet.amount, { color: isExpense ? colors.danger : colors.success }]}>
-              {isExpense ? "-" : "+"}{formatCurrency(tx.amount)}
-            </Text>
+      <View style={styles.modalBackdrop}>
+        <View style={styles.modalSheet}>
+          <Text style={styles.modalTitle}>{draft.id ? "Edit manual transaction" : "Add manual transaction"}</Text>
+          <Text style={styles.modalSubtitle}>
+            Manual transactions keep budgets, goals, and the dashboard useful even without Plaid.
+          </Text>
+
+          <View style={styles.toggleRow}>
+            {(["expense", "income"] as const).map((flow) => {
+              const selected = draft.flow === flow;
+              return (
+                <Pressable
+                  key={flow}
+                  style={[styles.toggleButton, selected && styles.toggleButtonSelected]}
+                  onPress={() => onChange({ ...draft, flow })}
+                >
+                  <Text style={[styles.toggleLabel, selected && styles.toggleLabelSelected]}>
+                    {flow === "expense" ? "Expense" : "Income"}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
 
-          {/* Category picker */}
-          <Text style={sheet.label}>Category</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={{ marginBottom: spacing.md }}
-          >
-            <View style={{ flexDirection: "row", gap: spacing.sm, paddingVertical: spacing.xs }}>
-              {categories.map((c) => (
-                <TouchableOpacity
-                  key={c.id}
-                  style={[
-                    sheet.chip,
-                    categoryId === c.id && { borderColor: c.color, backgroundColor: `${c.color}22` },
-                  ]}
-                  onPress={() => setCategoryId(c.id)}
-                >
-                  <Text style={{ fontSize: 14 }}>{c.icon}</Text>
-                  <Text style={[sheet.chipText, categoryId === c.id && { color: c.color }]}>
-                    {c.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </ScrollView>
-
-          {/* Note */}
-          <Text style={sheet.label}>Note</Text>
           <TextInput
-            style={sheet.input}
-            placeholder="Add a note..."
+            style={styles.input}
+            value={draft.amount}
+            onChangeText={(amount) => onChange({ ...draft, amount })}
+            placeholder="Amount"
             placeholderTextColor={colors.textDim}
-            value={note}
-            onChangeText={setNote}
+            keyboardType="decimal-pad"
+          />
+          <TextInput
+            style={styles.input}
+            value={draft.date}
+            onChangeText={(date) => onChange({ ...draft, date })}
+            placeholder="YYYY-MM-DD"
+            placeholderTextColor={colors.textDim}
+            autoCapitalize="none"
+          />
+          <TextInput
+            style={styles.input}
+            value={draft.merchantName}
+            onChangeText={(merchantName) => onChange({ ...draft, merchantName })}
+            placeholder="Merchant or income source"
+            placeholderTextColor={colors.textDim}
+          />
+          <TextInput
+            style={styles.input}
+            value={draft.note}
+            onChangeText={(note) => onChange({ ...draft, note })}
+            placeholder="Note (optional)"
+            placeholderTextColor={colors.textDim}
           />
 
-          {/* Impulse toggle */}
-          <View style={sheet.toggleRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={sheet.toggleLabel}>⚡ Impulse Purchase</Text>
-              <Text style={sheet.toggleSub}>Unplanned or emotional buy</Text>
-            </View>
-            <Switch
-              value={isImpulse}
-              onValueChange={setIsImpulse}
-              trackColor={{ false: colors.border, true: "rgba(245,158,11,0.4)" }}
-              thumbColor={isImpulse ? colors.warning : colors.textDim}
-            />
-          </View>
+          <Text style={styles.fieldLabel}>Manual account</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+            {manualAccounts.map((account) => {
+              const selected = draft.accountId === account.id;
+              return (
+                <Pressable
+                  key={account.id}
+                  style={[styles.chip, selected && styles.chipSelected]}
+                  onPress={() => onChange({ ...draft, accountId: account.id })}
+                >
+                  <Text style={[styles.chipLabel, selected && styles.chipLabelSelected]}>{account.name}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
 
-          <TouchableOpacity
-            style={[sheet.saveButton, mutation.isPending && { opacity: 0.6 }]}
-            onPress={() =>
-              mutation.mutate({ categoryId, note: note.trim() || null, isImpulse })
-            }
-            disabled={mutation.isPending}
+          <Text style={styles.fieldLabel}>Category</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+            <Pressable
+              style={[styles.chip, !draft.categoryId && styles.chipSelected]}
+              onPress={() => onChange({ ...draft, categoryId: "" })}
+            >
+              <Text style={[styles.chipLabel, !draft.categoryId && styles.chipLabelSelected]}>Uncategorized</Text>
+            </Pressable>
+            {categories.map((category) => {
+              const selected = draft.categoryId === category.id;
+              return (
+                <Pressable
+                  key={category.id}
+                  style={[
+                    styles.chip,
+                    selected && styles.chipSelected,
+                    { borderColor: selected ? category.color : colors.border },
+                  ]}
+                  onPress={() => onChange({ ...draft, categoryId: category.id })}
+                >
+                  <Text style={[styles.chipLabel, selected && styles.chipLabelSelected]}>
+                    {category.icon} {category.name}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+
+          <Pressable
+            style={[styles.impulseToggle, draft.isImpulse && styles.impulseToggleSelected]}
+            onPress={() => onChange({ ...draft, isImpulse: !draft.isImpulse })}
           >
-            <Text style={sheet.saveButtonText}>{mutation.isPending ? "Saving..." : "Save"}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={sheet.cancelButton} onPress={onClose}>
-            <Text style={sheet.cancelButtonText}>Cancel</Text>
-          </TouchableOpacity>
+            <Text style={[styles.impulseToggleText, draft.isImpulse && styles.impulseToggleTextSelected]}>
+              {draft.isImpulse ? "Impulse purchase flagged" : "Mark as impulse purchase"}
+            </Text>
+          </Pressable>
+
+          <View style={styles.modalActions}>
+            {onDelete ? (
+              <TouchableOpacity style={styles.modalDeleteButton} onPress={onDelete} disabled={saving}>
+                <Text style={styles.modalDeleteButtonText}>Delete</Text>
+              </TouchableOpacity>
+            ) : null}
+            <TouchableOpacity style={styles.modalSecondaryButton} onPress={onClose} disabled={saving}>
+              <Text style={styles.modalSecondaryButtonText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modalPrimaryButton, saving && styles.buttonDisabled]}
+              onPress={onSubmit}
+              disabled={saving}
+            >
+              <Text style={styles.modalPrimaryButtonText}>{saving ? "Saving..." : "Save"}</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
 
-// ─── Transaction Row ───────────────────────────────────────────────────────────
-
-function TransactionRow({ tx, onPress }: { tx: Transaction; onPress: () => void }) {
-  const isExpense = tx.amount > 0;
-  const accentColor = tx.category?.color ?? colors.border;
-
+function TransactionRow({
+  tx,
+  onToggleImpulse,
+  onOpenManualEditor,
+}: {
+  tx: TransactionSummary;
+  onToggleImpulse: () => void;
+  onOpenManualEditor: () => void;
+}) {
   return (
-    <TouchableOpacity
-      style={[styles.txRow, { borderLeftColor: accentColor }]}
-      onPress={onPress}
-      activeOpacity={0.7}
-    >
-      <View style={[styles.txIcon, { backgroundColor: `${accentColor}22` }]}>
-        <Text style={styles.txIconText}>{tx.category?.icon ?? "📦"}</Text>
+    <Pressable style={styles.txRow} onPress={tx.isManual ? onOpenManualEditor : undefined}>
+      <View style={[styles.txIcon, { backgroundColor: tx.category?.color ?? colors.surfaceAlt }]}>
+        <Text style={styles.txIconText}>{tx.category?.icon ?? "$"}</Text>
       </View>
+
       <View style={styles.txInfo}>
         <Text style={styles.txMerchant} numberOfLines={1}>
-          {tx.merchantName ?? "Unknown"}
+          {tx.merchantName ?? (tx.amount > 0 ? "Manual expense" : "Manual income")}
         </Text>
         <Text style={styles.txMeta}>
-          {formatDate(tx.date)}
-          {tx.category && ` · ${tx.category.name}`}
+          {formatShortDate(tx.date)}
+          {tx.category ? ` · ${tx.category.name}` : ""}
+          {` · ${tx.account.name}`}
         </Text>
+        <Text style={styles.txSource}>{tx.isManual ? "Manual" : "Plaid sync"}</Text>
       </View>
+
       <View style={styles.txRight}>
-        <Text style={[styles.txAmount, { color: isExpense ? colors.danger : colors.success }]}>
-          {isExpense ? "-" : "+"}{formatCurrency(tx.amount)}
+        <Text style={[styles.txAmount, { color: tx.amount > 0 ? colors.danger : colors.success }]}>
+          {formatSignedTransactionAmount(tx.amount)}
         </Text>
-        {tx.isImpulse && <Text style={styles.impulseBadge}>⚡</Text>}
+        <TouchableOpacity onPress={onToggleImpulse}>
+          <Text style={[styles.impulseTag, tx.isImpulse && styles.impulseTagActive]}>
+            {tx.isImpulse ? "Impulse" : "Flag"}
+          </Text>
+        </TouchableOpacity>
       </View>
-    </TouchableOpacity>
+    </Pressable>
   );
 }
-
-// ─── Main Screen ───────────────────────────────────────────────────────────────
 
 export default function TransactionsScreen() {
   const [search, setSearch] = useState("");
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
-  const [dateRange, setDateRange] = useState<"this_month" | "last_month" | "all">("this_month");
-  const [limit, setLimit] = useState(50);
-  const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [draft, setDraft] = useState<ManualTransactionDraft>(emptyDraft);
+  const qc = useQueryClient();
 
-  // Reset limit when filters change
-  const prevFiltersRef = useRef({ search, selectedCategoryId, dateRange });
-  if (
-    prevFiltersRef.current.search !== search ||
-    prevFiltersRef.current.selectedCategoryId !== selectedCategoryId ||
-    prevFiltersRef.current.dateRange !== dateRange
-  ) {
-    prevFiltersRef.current = { search, selectedCategoryId, dateRange };
-    if (limit !== 50) setLimit(50);
-  }
+  const accountsQuery = useQuery({
+    queryKey: ["accounts"],
+    queryFn: () => api.get<AccountsResponse>("/accounts"),
+  });
 
-  const { data, isLoading, refetch, isRefetching } = useQuery({
-    queryKey: ["transactions", search, selectedCategoryId, dateRange, limit],
+  const categoriesQuery = useQuery({
+    queryKey: ["categories"],
+    queryFn: () => api.get<CategorySummary[]>("/categories"),
+    staleTime: 60_000,
+  });
+
+  const transactionsQuery = useQuery({
+    queryKey: ["transactions", search],
     queryFn: () =>
-      api.get<TransactionsResponse>(buildUrl(search, selectedCategoryId, dateRange, limit)),
+      api.get<TransactionsResponse>(
+        `/transactions?limit=50${search ? `&search=${encodeURIComponent(search)}` : ""}`
+      ),
     staleTime: 10_000,
   });
 
-  const { data: categories } = useQuery({
-    queryKey: ["categories"],
-    queryFn: () => api.get<Category[]>("/categories"),
+  const toggleImpulse = useMutation({
+    mutationFn: ({ id, isImpulse }: { id: string; isImpulse: boolean }) =>
+      api.patch(`/transactions/${id}`, { isImpulse }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["transactions"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
   });
 
-  const hasMore = data ? data.transactions.length < data.total : false;
+  const manualTransactionMutation = useMutation({
+    mutationFn: async (currentDraft: ManualTransactionDraft) => {
+      const absoluteAmount = Number(currentDraft.amount);
+      if (!currentDraft.accountId) throw new Error("Choose a manual account first.");
+      if (!Number.isFinite(absoluteAmount) || absoluteAmount <= 0) {
+        throw new Error("Enter an amount greater than zero.");
+      }
+
+      let date: string;
+      try {
+        date = toTransactionIsoDate(currentDraft.date);
+      } catch {
+        throw new Error("Enter a valid date in YYYY-MM-DD format.");
+      }
+
+      const payload = {
+        accountId: currentDraft.accountId,
+        amount: currentDraft.flow === "expense" ? absoluteAmount : -absoluteAmount,
+        date,
+        merchantName: currentDraft.merchantName.trim() || undefined,
+        categoryId: currentDraft.categoryId || undefined,
+        note: currentDraft.note.trim() || undefined,
+        isImpulse: currentDraft.isImpulse,
+      };
+
+      if (currentDraft.id) {
+        return api.patch(`/transactions/${currentDraft.id}`, payload);
+      }
+
+      return api.post("/transactions", payload);
+    },
+    onSuccess: () => {
+      setModalVisible(false);
+      setDraft(emptyDraft);
+      qc.invalidateQueries({ queryKey: ["transactions"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["budgets"] });
+      qc.invalidateQueries({ queryKey: ["goals"] });
+    },
+  });
+
+  const deleteManualTransactionMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/transactions/${id}`),
+    onSuccess: () => {
+      setModalVisible(false);
+      setDraft(emptyDraft);
+      qc.invalidateQueries({ queryKey: ["transactions"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["budgets"] });
+      qc.invalidateQueries({ queryKey: ["goals"] });
+    },
+  });
+
+  const manualAccounts = (accountsQuery.data?.accounts ?? []).filter((account) => account.source === "MANUAL");
+  const categories = categoriesQuery.data ?? [];
+  const transactions = transactionsQuery.data?.transactions ?? [];
+
+  const openCreateModal = () => {
+    if (manualAccounts.length === 0) {
+      Alert.alert(
+        "Add a manual account first",
+        "Create a manual account in Profile before adding manual transactions."
+      );
+      return;
+    }
+
+    setDraft({
+      ...emptyDraft,
+      accountId: manualAccounts[0]?.id ?? "",
+    });
+    setModalVisible(true);
+  };
+
+  const openEditModal = (tx: TransactionSummary) => {
+    if (!tx.isManual) return;
+    setDraft({
+      id: tx.id,
+      accountId: tx.account.id,
+      amount: String(Math.abs(tx.amount)),
+      flow: tx.amount > 0 ? "expense" : "income",
+      date: toIsoDateInput(tx.date),
+      merchantName: tx.merchantName ?? "",
+      categoryId: tx.category?.id ?? "",
+      note: tx.note ?? "",
+      isImpulse: tx.isImpulse,
+    });
+    setModalVisible(true);
+  };
+
+  const submitManualTransaction = async () => {
+    try {
+      await manualTransactionMutation.mutateAsync(draft);
+    } catch (error) {
+      Alert.alert("Could not save transaction", transactionErrorMessage(error));
+    }
+  };
+
+  const confirmDeleteTransaction = () => {
+    if (!draft.id) return;
+
+    Alert.alert(
+      "Delete transaction?",
+      "This removes the manual transaction from budgets, goals, and the dashboard.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteManualTransactionMutation.mutateAsync(draft.id!);
+            } catch (error) {
+              Alert.alert("Could not delete transaction", transactionErrorMessage(error));
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const listEmpty = !transactionsQuery.isLoading && !transactionsQuery.isError;
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
-      {/* Header + Search */}
-      <View style={styles.header}>
-        <Text style={styles.title}>Transactions</Text>
-        <TextInput
-          style={styles.search}
-          placeholder="Search merchants..."
-          placeholderTextColor={colors.textDim}
-          value={search}
-          onChangeText={setSearch}
-          clearButtonMode="while-editing"
+    <>
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <View style={styles.headerRow}>
+            <Text style={styles.title}>Transactions</Text>
+            <TouchableOpacity style={styles.addButton} onPress={openCreateModal}>
+              <Text style={styles.addButtonText}>Manual +</Text>
+            </TouchableOpacity>
+          </View>
+          <TextInput
+            style={styles.search}
+            placeholder="Search merchants..."
+            placeholderTextColor={colors.textDim}
+            value={search}
+            onChangeText={setSearch}
+          />
+        </View>
+
+        {transactionsQuery.isError ? (
+          <View style={styles.errorCard}>
+            <Text style={styles.errorTitle}>Transactions are unavailable</Text>
+            <Text style={styles.errorBody}>
+              We could not load your ledger. Retry the API call or use manual entry once the connection is back.
+            </Text>
+            <TouchableOpacity style={styles.errorButton} onPress={() => transactionsQuery.refetch()}>
+              <Text style={styles.errorButtonText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
+        <FlatList
+          data={transactions}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <TransactionRow
+              tx={item}
+              onToggleImpulse={() => toggleImpulse.mutate({ id: item.id, isImpulse: !item.isImpulse })}
+              onOpenManualEditor={() => openEditModal(item)}
+            />
+          )}
+          refreshControl={
+            <RefreshControl
+              refreshing={transactionsQuery.isRefetching}
+              onRefresh={transactionsQuery.refetch}
+              tintColor={colors.primary}
+            />
+          }
+          contentContainerStyle={styles.list}
+          ListEmptyComponent={
+            listEmpty ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyTitle}>No transactions yet</Text>
+                <Text style={styles.emptyBody}>
+                  Connect a bank from Profile or add a manual account and log transactions here.
+                </Text>
+                <TouchableOpacity style={styles.emptyButton} onPress={openCreateModal}>
+                  <Text style={styles.emptyButtonText}>Add manual transaction</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null
+          }
         />
       </View>
 
-      {/* Date range pills */}
-      <View style={styles.dateRangeRow}>
-        {DATE_RANGES.map((r) => (
-          <TouchableOpacity
-            key={r.value}
-            style={[styles.dateChip, dateRange === r.value && styles.dateChipActive]}
-            onPress={() => setDateRange(r.value)}
-          >
-            <Text
-              style={[styles.dateChipText, dateRange === r.value && styles.dateChipTextActive]}
-            >
-              {r.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* Category filter chips */}
-      {categories && categories.length > 0 && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.categoryBar}
-          contentContainerStyle={styles.categoryBarContent}
-        >
-          <TouchableOpacity
-            style={[styles.catChip, !selectedCategoryId && styles.catChipActive]}
-            onPress={() => setSelectedCategoryId(null)}
-          >
-            <Text style={[styles.catChipText, !selectedCategoryId && styles.catChipTextActive]}>
-              All
-            </Text>
-          </TouchableOpacity>
-          {categories.map((c) => (
-            <TouchableOpacity
-              key={c.id}
-              style={[
-                styles.catChip,
-                selectedCategoryId === c.id && {
-                  borderColor: c.color,
-                  backgroundColor: `${c.color}22`,
-                },
-              ]}
-              onPress={() =>
-                setSelectedCategoryId(selectedCategoryId === c.id ? null : c.id)
-              }
-            >
-              <Text style={{ fontSize: 13 }}>{c.icon}</Text>
-              <Text
-                style={[
-                  styles.catChipText,
-                  selectedCategoryId === c.id && { color: c.color },
-                ]}
-              >
-                {c.name}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      )}
-
-      <FlatList
-        data={data?.transactions ?? []}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <TransactionRow tx={item} onPress={() => setSelectedTx(item)} />
-        )}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefetching}
-            onRefresh={refetch}
-            tintColor={colors.primary}
-          />
-        }
-        contentContainerStyle={styles.list}
-        ListEmptyComponent={
-          !isLoading ? (
-            <View style={styles.emptyState}>
-              <Text style={{ fontSize: 40 }}>🔍</Text>
-              <Text style={typography.body}>No transactions found.</Text>
-              <Text style={[typography.bodySmall, { textAlign: "center" }]}>
-                {selectedCategoryId || search
-                  ? "Try adjusting your filters."
-                  : "Connect a bank account to see your spending."}
-              </Text>
-            </View>
-          ) : null
-        }
-        ListFooterComponent={
-          hasMore ? (
-            <TouchableOpacity
-              style={styles.loadMoreButton}
-              onPress={() => setLimit((l) => l + 50)}
-            >
-              <Text style={styles.loadMoreText}>
-                Load more ({data!.total - data!.transactions.length} remaining)
-              </Text>
-            </TouchableOpacity>
-          ) : null
-        }
+      <ManualTransactionModal
+        visible={modalVisible}
+        draft={draft}
+        manualAccounts={manualAccounts}
+        categories={categories}
+        saving={manualTransactionMutation.isPending || deleteManualTransactionMutation.isPending}
+        onChange={setDraft}
+        onClose={() => {
+          if (manualTransactionMutation.isPending || deleteManualTransactionMutation.isPending) return;
+          setModalVisible(false);
+          setDraft(emptyDraft);
+        }}
+        onSubmit={submitManualTransaction}
+        onDelete={draft.id ? confirmDeleteTransaction : null}
       />
-
-      <TransactionDetailSheet
-        tx={selectedTx}
-        categories={categories ?? []}
-        visible={!!selectedTx}
-        onClose={() => setSelectedTx(null)}
-      />
-    </SafeAreaView>
+    </>
   );
 }
 
-// ─── Styles ────────────────────────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  header: { padding: spacing.md, paddingTop: spacing.xl },
-  title: { ...typography.h2, marginBottom: spacing.md },
+  header: { padding: spacing.md, paddingTop: spacing.xl, gap: spacing.md },
+  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  title: { ...typography.h2 },
+  addButton: {
+    backgroundColor: colors.primary,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  addButtonText: { color: colors.white, fontWeight: "700" },
   search: {
     backgroundColor: colors.surface,
     borderRadius: radius.md,
@@ -424,43 +521,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  dateRangeRow: {
-    flexDirection: "row",
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    marginBottom: spacing.sm,
-  },
-  dateChip: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: radius.full,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  dateChipActive: { borderColor: colors.primary, backgroundColor: colors.primaryDim },
-  dateChipText: { fontSize: 13, fontWeight: "500", color: colors.textMuted },
-  dateChipTextActive: { color: colors.primary },
-  categoryBar: { flexGrow: 0, marginBottom: spacing.sm },
-  categoryBarContent: {
-    paddingHorizontal: spacing.md,
-    gap: spacing.sm,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  catChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: radius.full,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  catChipActive: { borderColor: colors.primary, backgroundColor: colors.primaryDim },
-  catChipText: { fontSize: 12, fontWeight: "500", color: colors.textMuted },
-  catChipTextActive: { color: colors.primary },
-  list: { padding: spacing.md, gap: spacing.xs, paddingBottom: spacing.xxl },
+  list: { padding: spacing.md, gap: spacing.xs, flexGrow: 1 },
   txRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -468,7 +529,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     padding: spacing.md,
     gap: spacing.sm,
-    borderLeftWidth: 3,
   },
   txIcon: {
     width: 40,
@@ -481,76 +541,155 @@ const styles = StyleSheet.create({
   txInfo: { flex: 1 },
   txMerchant: { ...typography.label, marginBottom: 2 },
   txMeta: { ...typography.caption },
-  txRight: { alignItems: "flex-end", gap: 4 },
-  txAmount: { fontSize: 15, fontWeight: "600" },
-  impulseBadge: { fontSize: 13 },
-  emptyState: { alignItems: "center", paddingTop: spacing.xxl, gap: spacing.sm },
-  loadMoreButton: {
-    margin: spacing.md,
-    padding: spacing.md,
-    borderRadius: radius.md,
+  txSource: { ...typography.caption, marginTop: 4, color: colors.textMuted },
+  txRight: { alignItems: "flex-end" },
+  txAmount: { fontSize: 15, fontWeight: "700", marginBottom: 4 },
+  impulseTag: {
+    fontSize: 11,
+    color: colors.textDim,
     borderWidth: 1,
     borderColor: colors.border,
-    alignItems: "center",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: radius.full,
   },
-  loadMoreText: { ...typography.bodySmall, color: colors.textMuted },
-});
-
-const sheet = StyleSheet.create({
-  overlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.6)" },
-  container: {
+  impulseTagActive: {
+    color: colors.warning,
+    borderColor: colors.warning,
+    backgroundColor: "rgba(245,158,11,0.1)",
+  },
+  emptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: spacing.xxl,
+    gap: spacing.sm,
+  },
+  emptyTitle: { ...typography.label },
+  emptyBody: { ...typography.bodySmall, textAlign: "center", maxWidth: 280 },
+  emptyButton: {
+    marginTop: spacing.sm,
+    backgroundColor: colors.primary,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+  },
+  emptyButtonText: { color: colors.white, fontWeight: "700" },
+  errorCard: {
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+    backgroundColor: "rgba(239,68,68,0.08)",
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: "rgba(239,68,68,0.3)",
+    padding: spacing.md,
+  },
+  errorTitle: { ...typography.label, color: colors.danger },
+  errorBody: { ...typography.bodySmall, marginTop: spacing.xs },
+  errorButton: {
+    alignSelf: "flex-start",
+    marginTop: spacing.sm,
+    backgroundColor: colors.danger,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  errorButtonText: { color: colors.white, fontWeight: "700" },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.65)",
+    justifyContent: "flex-end",
+  },
+  modalSheet: {
     backgroundColor: colors.surface,
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,
-    padding: spacing.xl,
-    paddingBottom: spacing.xxl,
+    padding: spacing.lg,
+    gap: spacing.sm,
   },
-  header: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginBottom: spacing.lg },
-  icon: { width: 48, height: 48, borderRadius: radius.full, alignItems: "center", justifyContent: "center" },
-  merchant: { ...typography.h3, marginBottom: 2 },
-  date: { ...typography.caption },
-  amount: { fontSize: 20, fontWeight: "700" },
-  label: { ...typography.label, marginBottom: spacing.xs },
-  chip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: radius.full,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  chipText: { fontSize: 12, color: colors.textMuted, fontWeight: "500" },
+  modalTitle: { ...typography.h3 },
+  modalSubtitle: { ...typography.bodySmall, marginBottom: spacing.sm },
   input: {
-    backgroundColor: colors.bg,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    color: colors.text,
-    fontSize: 15,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: spacing.md,
-  },
-  toggleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
     backgroundColor: colors.surfaceAlt,
     borderRadius: radius.md,
     padding: spacing.md,
-    marginBottom: spacing.lg,
+    color: colors.text,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  toggleLabel: { ...typography.label },
-  toggleSub: { ...typography.caption, marginTop: 2 },
-  saveButton: {
-    backgroundColor: colors.primary,
-    borderRadius: radius.md,
-    padding: spacing.md,
+  fieldLabel: { ...typography.caption, color: colors.textMuted, marginTop: spacing.xs },
+  chipRow: { gap: spacing.sm, paddingVertical: spacing.xs },
+  chip: {
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.surfaceAlt,
+  },
+  chipSelected: {
+    backgroundColor: colors.primaryDim,
+    borderColor: colors.primary,
+  },
+  chipLabel: { color: colors.textMuted, fontWeight: "600" },
+  chipLabelSelected: { color: colors.white },
+  toggleRow: { flexDirection: "row", gap: spacing.sm },
+  toggleButton: {
+    flex: 1,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: spacing.sm,
     alignItems: "center",
-    marginBottom: spacing.sm,
+    backgroundColor: colors.surfaceAlt,
   },
-  saveButtonText: { color: colors.bg, fontSize: 16, fontWeight: "700" },
-  cancelButton: { alignItems: "center", padding: spacing.sm },
-  cancelButtonText: { ...typography.body, color: colors.textDim },
+  toggleButtonSelected: {
+    backgroundColor: colors.primaryDim,
+    borderColor: colors.primary,
+  },
+  toggleLabel: { color: colors.textMuted, fontWeight: "700" },
+  toggleLabelSelected: { color: colors.white },
+  impulseToggle: {
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceAlt,
+    padding: spacing.md,
+    marginTop: spacing.sm,
+  },
+  impulseToggleSelected: {
+    borderColor: colors.warning,
+    backgroundColor: "rgba(245,158,11,0.12)",
+  },
+  impulseToggleText: { color: colors.textMuted, fontWeight: "600" },
+  impulseToggleTextSelected: { color: colors.warning },
+  modalActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  modalDeleteButton: {
+    marginRight: "auto",
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: "rgba(239,68,68,0.12)",
+  },
+  modalDeleteButtonText: { color: colors.danger, fontWeight: "700" },
+  modalSecondaryButton: {
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  modalSecondaryButtonText: { color: colors.text },
+  modalPrimaryButton: {
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.primary,
+  },
+  modalPrimaryButtonText: { color: colors.white, fontWeight: "700" },
+  buttonDisabled: { opacity: 0.6 },
 });

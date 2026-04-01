@@ -1,4 +1,4 @@
-import { prisma, StreakType } from "@finance/db";
+import { prisma, StreakType } from "@worthlane/db";
 import { startOfMonth, endOfMonth, startOfWeek } from "./dates";
 
 function isToday(date: Date): boolean {

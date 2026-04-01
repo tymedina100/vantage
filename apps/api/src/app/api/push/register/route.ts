@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import Expo from "expo-server-sdk";
-import { prisma } from "@finance/db";
+import { prisma } from "@worthlane/db";
 import { getAuthUser } from "@/lib/auth";
 import { ok, err, unauthorized } from "@/lib/response";
 

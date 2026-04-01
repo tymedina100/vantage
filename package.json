@@ -1,5 +1,5 @@
 {
-  "name": "finance-app",
+  "name": "worthlane",
   "private": true,
   "packageManager": "pnpm@10.31.0",
   "scripts": {
@@ -7,7 +7,7 @@
     "build": "turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
-    "test": "pnpm --filter @finance/api test",
+    "test": "pnpm --filter @worthlane/api test",
     "db:generate": "turbo run db:generate",
     "db:migrate": "turbo run db:migrate",
     "db:studio": "turbo run db:studio"

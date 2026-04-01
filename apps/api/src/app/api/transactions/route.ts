@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { prisma } from "@finance/db";
+import { AccountSource, prisma } from "@worthlane/db";
 import { getAuthUser } from "@/lib/auth";
 import { ok, err, unauthorized } from "@/lib/response";
 
@@ -57,7 +57,33 @@ export async function GET(req: NextRequest) {
     prisma.transaction.count({ where }),
   ]);
 
-  return ok({ transactions, total, page, limit });
+  return ok({
+    transactions: transactions.map((tx) => ({
+      id: tx.id,
+      amount: tx.amount.toNumber(),
+      date: tx.date.toISOString(),
+      merchantName: tx.merchantName,
+      note: tx.note,
+      isImpulse: tx.isImpulse,
+      isManual: tx.isManual,
+      account: {
+        id: tx.account.id,
+        name: tx.account.name,
+        source: tx.account.source,
+      },
+      category: tx.category
+        ? {
+            id: tx.category.id,
+            name: tx.category.name,
+            icon: tx.category.icon,
+            color: tx.category.color,
+          }
+        : null,
+    })),
+    total,
+    page,
+    limit,
+  });
 }
 
 export async function POST(req: NextRequest) {
@@ -76,6 +102,9 @@ export async function POST(req: NextRequest) {
     where: { id: parsed.data.accountId, userId },
   });
   if (!account) return err("Account not found", 404);
+  if (account.source !== AccountSource.MANUAL) {
+    return err("Manual transactions can only be created on manual accounts.", 400, "ACCOUNT_NOT_MANUAL");
+  }
 
   const tx = await prisma.transaction.create({
     data: {
@@ -84,8 +113,29 @@ export async function POST(req: NextRequest) {
       date: new Date(parsed.data.date),
       isManual: true,
     },
-    include: { category: true },
+    include: { category: true, account: true },
   });
 
-  return ok(tx, 201);
+  return ok({
+    id: tx.id,
+    amount: tx.amount.toNumber(),
+    date: tx.date.toISOString(),
+    merchantName: tx.merchantName,
+    note: tx.note,
+    isImpulse: tx.isImpulse,
+    isManual: tx.isManual,
+    account: {
+      id: tx.account.id,
+      name: tx.account.name,
+      source: tx.account.source,
+    },
+    category: tx.category
+      ? {
+          id: tx.category.id,
+          name: tx.category.name,
+          icon: tx.category.icon,
+          color: tx.category.color,
+        }
+      : null,
+  }, 201);
 }

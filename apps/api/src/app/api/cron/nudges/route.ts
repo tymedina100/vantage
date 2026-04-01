@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
-import { prisma } from "@finance/db";
+import { prisma } from "@worthlane/db";
 import { generateNudgesForUser } from "@/lib/nudge-engine";
 import { ok, err } from "@/lib/response";
+import { captureServerException } from "@/lib/sentry";
 
 export async function GET(req: NextRequest) {
   const auth = req.headers.get("authorization");
@@ -20,7 +21,12 @@ export async function GET(req: NextRequest) {
     try {
       await generateNudgesForUser(user.id);
       processed++;
-    } catch {
+    } catch (error) {
+      captureServerException(error, {
+        tags: { route: "/api/cron/nudges" },
+        extra: { userId: user.id },
+      });
+
       failed++;
     }
   }

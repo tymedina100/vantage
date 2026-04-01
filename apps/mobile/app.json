@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "Vantage",
-    "slug": "vantage",
-    "entryPoint": "./index.js",
+    "name": "Worthlane",
+    "owner": "tymedina100",
+    "slug": "worthlane",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -10,7 +10,7 @@
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0B0F1A"
+      "backgroundColor": "#0F0F0F"
     },
     "plugins": [
       "expo-router",
@@ -18,38 +18,33 @@
       [
         "expo-local-authentication",
         {
-          "faceIDPermission": "Allow Vantage to use Face ID for quick access."
+          "faceIDPermission": "Allow Worthlane to use Face ID for quick access."
         }
       ],
       [
         "expo-notifications",
         {
           "icon": "./assets/notification-icon.png",
-          "color": "#34D399"
+          "color": "#6C63FF"
         }
-      ],
-      "expo-font"
+      ]
     ],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.tylermedina.vantage",
-      "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
-      }
+      "bundleIdentifier": "com.worthlane.mobile"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0B0F1A"
+        "backgroundColor": "#0F0F0F"
       },
-      "package": "com.tylermedina.vantage",
+      "package": "com.worthlane.mobile",
       "permissions": [
         "android.permission.USE_BIOMETRIC",
         "android.permission.USE_FINGERPRINT"
       ]
     },
-    "newArchEnabled": true,
-    "scheme": "vantage",
+    "scheme": "worthlane",
     "experiments": {
       "typedRoutes": true
     },
@@ -58,7 +53,7 @@
         "origin": false
       },
       "eas": {
-        "projectId": "7b6c245d-68a9-49c5-bac7-9ec6db34f391"
+        "projectId": "4628c392-701f-498a-a861-31e21806edc3"
       }
     }
   }

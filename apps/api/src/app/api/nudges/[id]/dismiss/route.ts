@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
-import { prisma } from "@finance/db";
+import { prisma } from "@worthlane/db";
 import { getAuthUser } from "@/lib/auth";
+import { captureServerEvent } from "@/lib/posthog";
 import { ok, unauthorized, notFound } from "@/lib/response";
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
@@ -15,5 +16,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (!nudge) return notFound();
 
   await prisma.nudge.update({ where: { id: params.id }, data: { dismissed: true } });
+
+  await captureServerEvent({
+    distinctId: userId,
+    event: "nudge dismissed",
+    properties: {
+      nudgeId: nudge.id,
+      nudgeType: nudge.type,
+    },
+  });
+
   return ok({ dismissed: true });
 }

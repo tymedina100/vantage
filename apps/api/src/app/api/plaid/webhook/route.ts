@@ -1,0 +1,99 @@
+import { NextRequest } from "next/server";
+import { PlaidItemStatus, prisma } from "@worthlane/db";
+import { syncPlaidItemRecord } from "@/lib/plaid-sync";
+import { ok } from "@/lib/response";
+import { captureServerException } from "@/lib/sentry";
+
+export async function POST(req: NextRequest) {
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== "object") {
+    return ok({ received: true, ignored: true });
+  }
+
+  const webhookType = String((body as any).webhook_type ?? "");
+  const webhookCode = String((body as any).webhook_code ?? "");
+  const itemId = typeof (body as any).item_id === "string" ? (body as any).item_id : null;
+
+  if (!itemId) return ok({ received: true, ignored: true });
+
+  const plaidItem = await prisma.plaidItem.findUnique({ where: { itemId } });
+  if (!plaidItem) return ok({ received: true, ignored: true });
+
+  const now = new Date();
+  await prisma.plaidItem.update({
+    where: { id: plaidItem.id },
+    data: { lastWebhookAt: now },
+  });
+
+  if (webhookCode === "SYNC_UPDATES_AVAILABLE") {
+    try {
+      await syncPlaidItemRecord({ ...plaidItem, lastWebhookAt: now } as any);
+    } catch (error) {
+      captureServerException(error, {
+        tags: { route: "/api/plaid/webhook" },
+        extra: {
+          itemId,
+          webhookCode,
+          webhookType,
+        },
+      });
+
+      // Item status is updated inside the shared sync service.
+    }
+    return ok({ received: true });
+  }
+
+  if (webhookCode === "PENDING_EXPIRATION") {
+    await prisma.plaidItem.update({
+      where: { id: plaidItem.id },
+      data: {
+        status: PlaidItemStatus.PENDING_EXPIRATION,
+        needsRelink: true,
+        errorCode: webhookCode,
+        errorMessage: "Your bank connection is expiring soon. Please re-link it.",
+      },
+    });
+    return ok({ received: true });
+  }
+
+  if (
+    webhookType === "ITEM" ||
+    webhookCode === "ERROR" ||
+    webhookCode === "USER_PERMISSION_REVOKED" ||
+    webhookCode === "ITEM_LOGIN_REQUIRED"
+  ) {
+    const errorCode =
+      typeof (body as any).error?.error_code === "string"
+        ? (body as any).error.error_code
+        : webhookCode;
+    const errorMessage =
+      typeof (body as any).error?.error_message === "string"
+        ? (body as any).error.error_message
+        : "Your bank connection needs attention.";
+
+    await prisma.plaidItem.update({
+      where: { id: plaidItem.id },
+      data: {
+        status: PlaidItemStatus.NEEDS_RELINK,
+        needsRelink: true,
+        errorCode,
+        errorMessage,
+      },
+    });
+    return ok({ received: true });
+  }
+
+  if (webhookCode === "LOGIN_REPAIRED") {
+    await prisma.plaidItem.update({
+      where: { id: plaidItem.id },
+      data: {
+        status: PlaidItemStatus.HEALTHY,
+        needsRelink: false,
+        errorCode: null,
+        errorMessage: null,
+      },
+    });
+  }
+
+  return ok({ received: true });
+}

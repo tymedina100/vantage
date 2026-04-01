@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { prisma, GoalType } from "@finance/db";
+import { prisma, GoalType } from "@worthlane/db";
 import { getAuthUser } from "@/lib/auth";
+import { captureServerEvent } from "@/lib/posthog";
 import { ok, err, unauthorized } from "@/lib/response";
 import { monthsBetween } from "@/lib/dates";
 
@@ -117,6 +118,17 @@ export async function POST(req: NextRequest) {
       userId,
       ...rest,
       targetDate: targetDate ? new Date(targetDate) : null,
+    },
+  });
+
+  await captureServerEvent({
+    distinctId: userId,
+    event: "goal created",
+    properties: {
+      goalId: goal.id,
+      goalType: goal.type,
+      hasTargetDate: Boolean(goal.targetDate),
+      targetAmount: goal.targetAmount.toNumber(),
     },
   });
 

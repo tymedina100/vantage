@@ -1,7 +1,9 @@
 import { useEffect } from "react";
-import { Stack } from "expo-router";
+import { Stack, usePathname } from "expo-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { StatusBar } from "expo-status-bar";
+import { Sentry } from "@/lib/sentry";
+import { isPostHogEnabled, posthog } from "@/lib/posthog";
 import { useAuthStore } from "@/store/auth";
 import { colors } from "@/lib/theme";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -15,7 +17,7 @@ const queryClient = new QueryClient({
   },
 });
 
-export default function RootLayout() {
+function RootLayout() {
   const hydrate = useAuthStore((s) => s.hydrate);
 
   useEffect(() => {
@@ -25,6 +27,7 @@ export default function RootLayout() {
   return (
     <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
+      <AnalyticsScreenTracker />
       <StatusBar style="light" />
       <Stack
         screenOptions={{
@@ -40,3 +43,16 @@ export default function RootLayout() {
     </ErrorBoundary>
   );
 }
+
+function AnalyticsScreenTracker() {
+  const pathname = usePathname();
+
+  useEffect(() => {
+    if (!isPostHogEnabled || !pathname) return;
+    posthog.screen(pathname);
+  }, [pathname]);
+
+  return null;
+}
+
+export default Sentry.wrap(RootLayout);

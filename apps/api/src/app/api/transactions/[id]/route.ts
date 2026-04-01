@@ -1,32 +1,24 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { prisma } from "@finance/db";
+import { AccountSource, prisma } from "@worthlane/db";
 import { getAuthUser } from "@/lib/auth";
 import { ok, err, unauthorized, notFound } from "@/lib/response";
 
-const updateSchema = z.object({
-  categoryId: z.string().nullable().optional(),
-  note: z.string().nullable().optional(),
+const manualUpdateSchema = z.object({
+  accountId: z.string().optional(),
+  amount: z.number().optional(),
+  date: z.string().datetime().optional(),
+  categoryId: z.string().optional(),
+  note: z.string().optional(),
   isImpulse: z.boolean().optional(),
   merchantName: z.string().optional(),
 });
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  let userId: string;
-  try {
-    ({ sub: userId } = getAuthUser(_req));
-  } catch {
-    return unauthorized();
-  }
-
-  const tx = await prisma.transaction.findFirst({
-    where: { id: params.id, userId },
-    include: { category: true },
-  });
-  if (!tx) return notFound();
-
-  return ok(tx);
-}
+const importedUpdateSchema = z.object({
+  categoryId: z.string().optional(),
+  note: z.string().optional(),
+  isImpulse: z.boolean().optional(),
+});
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   let userId: string;
@@ -40,25 +32,77 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (!tx) return notFound();
 
   const body = await req.json().catch(() => null);
-  const parsed = updateSchema.safeParse(body);
-  if (!parsed.success) return err("Invalid request body");
+  const parsedManual = tx.isManual ? manualUpdateSchema.safeParse(body) : null;
+  const parsedImported = tx.isManual ? null : importedUpdateSchema.safeParse(body);
 
-  // Validate categoryId belongs to user or is a system category
-  if (parsed.data.categoryId) {
-    const category = await prisma.category.findFirst({
+  if (parsedManual && !parsedManual.success) return err("Invalid request body");
+  if (parsedImported && !parsedImported.success) return err("Invalid request body");
+
+  if (parsedManual?.data.accountId) {
+    const account = await prisma.account.findFirst({
       where: {
-        id: parsed.data.categoryId,
-        OR: [{ userId }, { isSystem: true }],
+        id: parsedManual.data.accountId,
+        userId,
       },
     });
-    if (!category) return err("Invalid category", 400);
+
+    if (!account) return err("Account not found", 404, "ACCOUNT_NOT_FOUND");
+    if (account.source !== AccountSource.MANUAL) {
+      return err("Manual transactions can only be moved to manual accounts.", 400, "ACCOUNT_NOT_MANUAL");
+    }
   }
+
+  const updateData = tx.isManual
+    ? {
+        ...parsedManual!.data,
+        ...(parsedManual!.data.date ? { date: new Date(parsedManual!.data.date) } : {}),
+      }
+    : parsedImported!.data;
 
   const updated = await prisma.transaction.update({
     where: { id: params.id },
-    data: parsed.data,
-    include: { category: true },
+    data: updateData,
+    include: { category: true, account: true },
   });
 
-  return ok(updated);
+  return ok({
+    id: updated.id,
+    amount: updated.amount.toNumber(),
+    date: updated.date.toISOString(),
+    merchantName: updated.merchantName,
+    note: updated.note,
+    isImpulse: updated.isImpulse,
+    isManual: updated.isManual,
+    account: {
+      id: updated.account.id,
+      name: updated.account.name,
+      source: updated.account.source,
+    },
+    category: updated.category
+      ? {
+          id: updated.category.id,
+          name: updated.category.name,
+          icon: updated.category.icon,
+          color: updated.category.color,
+        }
+      : null,
+  });
+}
+
+export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+  let userId: string;
+  try {
+    ({ sub: userId } = getAuthUser(req));
+  } catch {
+    return unauthorized();
+  }
+
+  const tx = await prisma.transaction.findFirst({ where: { id: params.id, userId } });
+  if (!tx) return notFound();
+  if (!tx.isManual) {
+    return err("Imported transactions cannot be deleted.", 400, "TRANSACTION_NOT_DELETABLE");
+  }
+
+  await prisma.transaction.delete({ where: { id: params.id } });
+  return ok({ deleted: true });
 }

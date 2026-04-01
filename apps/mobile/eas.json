@@ -1,30 +1,21 @@
 {
   "cli": {
-    "version": ">= 10.0.0",
+    "version": ">= 18.3.0",
     "appVersionSource": "remote"
   },
   "build": {
     "development": {
+      "environment": "development",
       "developmentClient": true,
-      "distribution": "internal",
-      "ios": {
-        "simulator": false
-      },
-      "env": {
-        "EXPO_PUBLIC_API_URL": "https://financeapi-production-1853.up.railway.app/api"
-      }
+      "distribution": "internal"
     },
     "preview": {
-      "distribution": "internal",
-      "env": {
-        "EXPO_PUBLIC_API_URL": "https://financeapi-production-1853.up.railway.app/api"
-      }
+      "environment": "preview",
+      "distribution": "internal"
     },
     "production": {
-      "autoIncrement": true,
-      "env": {
-        "EXPO_PUBLIC_API_URL": "https://financeapi-production-1853.up.railway.app/api"
-      }
+      "environment": "production",
+      "autoIncrement": true
     }
   },
   "submit": {

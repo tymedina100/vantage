@@ -1,4 +1,4 @@
-import { prisma, NudgeType } from "@finance/db";
+import { prisma, NudgeType } from "@worthlane/db";
 import { startOfMonth, endOfMonth } from "./dates";
 import { sendPushToUser } from "./push";
 

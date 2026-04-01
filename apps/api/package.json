@@ -1,6 +1,6 @@
 {
-  "name": "@finance/api",
-  "version": "0.0.2",
+  "name": "@worthlane/api",
+  "version": "0.0.1",
   "private": true,
   "scripts": {
     "dev": "next dev --port 3001",
@@ -13,17 +13,17 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.79.0",
-    "@finance/db": "workspace:*",
-    "@finance/types": "workspace:*",
+    "@sentry/nextjs": "^10.47.0",
+    "@worthlane/db": "workspace:*",
+    "@worthlane/types": "workspace:*",
     "bcryptjs": "^2.4.3",
     "expo-server-sdk": "^6.0.0",
     "jsonwebtoken": "^9.0.2",
     "next": "^14.2.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
     "plaid": "^26.0.0",
-    "resend": "^6.9.3",
+    "posthog-node": "^5.28.10",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
     "zod": "^3.23.0"
   },
   "devDependencies": {

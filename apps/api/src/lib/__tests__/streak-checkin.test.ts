@@ -9,7 +9,7 @@ const { mockPrisma } = vi.hoisted(() => {
   return { mockPrisma };
 });
 
-vi.mock("@finance/db", () => ({
+vi.mock("@worthlane/db", () => ({
   prisma: mockPrisma,
   StreakType: {
     DAILY_CHECKIN: "DAILY_CHECKIN",

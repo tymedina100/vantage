@@ -30,8 +30,8 @@
         <action android:name="android.intent.action.VIEW"/>
         <category android:name="android.intent.category.DEFAULT"/>
         <category android:name="android.intent.category.BROWSABLE"/>
-        <data android:scheme="finance"/>
-        <data android:scheme="com.financeapp.mobile"/>
+        <data android:scheme="worthlane"/>
+        <data android:scheme="com.worthlane.mobile"/>
       </intent-filter>
     </activity>
     <activity android:name="com.facebook.react.devsupport.DevSettingsActivity" android:exported="false"/>

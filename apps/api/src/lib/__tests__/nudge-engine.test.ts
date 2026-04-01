@@ -13,7 +13,7 @@ const { mockPrisma } = vi.hoisted(() => {
   return { mockPrisma };
 });
 
-vi.mock("@finance/db", () => ({
+vi.mock("@worthlane/db", () => ({
   prisma: mockPrisma,
   NudgeType: {
     BUDGET_WARNING: "BUDGET_WARNING",

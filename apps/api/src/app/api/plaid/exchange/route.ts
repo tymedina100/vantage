@@ -1,22 +1,21 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { prisma, AccountType } from "@finance/db";
+import { PlaidItemStatus, prisma } from "@worthlane/db";
 import { getAuthUser } from "@/lib/auth";
-import { exchangePublicToken, getAccounts } from "@/lib/plaid";
+import {
+  encryptPlaidAccessToken,
+  exchangePublicToken,
+  PlaidIntegrationError,
+} from "@/lib/plaid";
+import { captureServerEvent } from "@/lib/posthog";
+import { syncPlaidItemRecord } from "@/lib/plaid-sync";
 import { ok, err, unauthorized } from "@/lib/response";
-import { encrypt } from "@/lib/encrypt";
+import { captureServerException } from "@/lib/sentry";
 
 const schema = z.object({
   publicToken: z.string(),
   institutionName: z.string().optional(),
 });
-
-const plaidTypeMap: Record<string, AccountType> = {
-  depository: AccountType.CHECKING,
-  credit: AccountType.CREDIT,
-  investment: AccountType.INVESTMENT,
-  loan: AccountType.LOAN,
-};
 
 export async function POST(req: NextRequest) {
   let userId: string;
@@ -32,40 +31,66 @@ export async function POST(req: NextRequest) {
 
   const { publicToken, institutionName } = parsed.data;
 
-  const { accessToken, itemId } = await exchangePublicToken(publicToken);
+  try {
+    const { accessToken, itemId } = await exchangePublicToken(publicToken);
+    const existing = await prisma.plaidItem.findUnique({ where: { itemId } });
+    if (existing && existing.userId !== userId) {
+      return err("This institution is already linked to another account.", 409, "PLAID_ITEM_ALREADY_LINKED");
+    }
 
-  // Check for duplicate item
-  const existing = await prisma.plaidItem.findUnique({ where: { itemId } });
-  if (existing) return err("This account is already connected", 409);
+    const created = !existing;
+    const plaidItem = await prisma.plaidItem.upsert({
+      where: { itemId },
+      create: {
+        userId,
+        itemId,
+        institution: institutionName,
+        accessTokenEncrypted: encryptPlaidAccessToken(accessToken),
+        status: PlaidItemStatus.HEALTHY,
+      },
+      update: {
+        institution: institutionName ?? existing?.institution ?? null,
+        accessTokenEncrypted: encryptPlaidAccessToken(accessToken),
+        status: PlaidItemStatus.HEALTHY,
+        needsRelink: false,
+        errorCode: null,
+        errorMessage: null,
+      },
+    });
 
-  // Persist the item with encrypted access token
-  await prisma.plaidItem.create({
-    data: { userId, itemId, accessToken: encrypt(accessToken), institution: institutionName },
-  });
+    const syncResult = await syncPlaidItemRecord(plaidItem, { refresh: true });
 
-  // Fetch and persist accounts (use plaintext token for API call)
-  const plaidAccounts = await getAccounts(accessToken);
-  const accounts = await Promise.all(
-    plaidAccounts.map((a) =>
-      prisma.account.upsert({
-        where: { plaidAccountId: a.account_id },
-        create: {
-          userId,
-          plaidAccountId: a.account_id,
-          plaidItemId: itemId,
-          name: a.name,
-          institutionName,
-          type: plaidTypeMap[a.type] ?? AccountType.OTHER,
-          currentBalance: a.balances.current ?? 0,
-          lastSyncedAt: new Date(),
-        },
-        update: {
-          currentBalance: a.balances.current ?? 0,
-          lastSyncedAt: new Date(),
-        },
-      })
-    )
-  );
+    await captureServerEvent({
+      distinctId: userId,
+      event: "bank account linked",
+      properties: {
+        institution: plaidItem.institution ?? institutionName ?? null,
+        plaidItemId: plaidItem.id,
+        itemId,
+        mode: created ? "create" : "update",
+      },
+    });
 
-  return ok({ accounts }, 201);
+    return ok({
+      plaidItem: {
+        id: plaidItem.id,
+        institution: plaidItem.institution ?? institutionName ?? null,
+      },
+      sync: syncResult,
+    }, created ? 201 : 200);
+  } catch (error) {
+    if (error instanceof PlaidIntegrationError) {
+      return err(error.message, error.status, error.code);
+    }
+
+    captureServerException(error, {
+      tags: { route: "/api/plaid/exchange" },
+      extra: {
+        institutionName: institutionName ?? null,
+        userId,
+      },
+    });
+
+    return err(error instanceof Error ? error.message : "Could not exchange the Plaid public token.", 500);
+  }
 }

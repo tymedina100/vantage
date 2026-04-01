@@ -1,4 +1,4 @@
-import { prisma } from "@finance/db";
+import { prisma } from "@worthlane/db";
 
 // Map Plaid's personal finance category to our internal category
 const PLAID_CATEGORY_MAP: Record<string, { name: string; icon: string; color: string }> = {

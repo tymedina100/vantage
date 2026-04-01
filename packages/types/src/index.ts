@@ -37,6 +37,41 @@ export interface Category {
   userId?: string | null;
 }
 
+export type AccountSource = "PLAID" | "MANUAL";
+export type PlaidItemStatus = "HEALTHY" | "NEEDS_RELINK" | "ERROR" | "PENDING_EXPIRATION";
+
+export interface PlaidItemSummary {
+  id: string;
+  itemId: string;
+  institution: string | null;
+  status: PlaidItemStatus;
+  needsRelink: boolean;
+  errorCode: string | null;
+  errorMessage: string | null;
+  lastSyncAt: string | null;
+  lastWebhookAt: string | null;
+  accountCount: number;
+}
+
+export interface AccountSummary {
+  id: string;
+  name: string;
+  institutionName: string | null;
+  type: string;
+  source: AccountSource;
+  currentBalance: number;
+  lastSyncedAt: string | null;
+  plaidItemId: string | null;
+  plaidItemStatus: PlaidItemStatus | null;
+  plaidNeedsRelink: boolean;
+  plaidErrorMessage: string | null;
+}
+
+export interface AccountsResponse {
+  accounts: AccountSummary[];
+  plaidItems: PlaidItemSummary[];
+}
+
 // Budget
 export interface BudgetWithSpent {
   id: string;
@@ -116,6 +151,12 @@ export interface DashboardSummary {
 // Plaid link
 export interface PlaidLinkTokenResponse {
   linkToken: string;
+}
+
+export interface PlaidLinkTokenRequest {
+  platform: "ios" | "android";
+  mode: "create" | "update";
+  plaidItemId?: string;
 }
 
 export interface PlaidExchangeRequest {

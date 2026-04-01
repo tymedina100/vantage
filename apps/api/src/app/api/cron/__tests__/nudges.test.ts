@@ -9,7 +9,7 @@ const { mockPrisma, mockGenerateNudges } = vi.hoisted(() => {
   return { mockPrisma, mockGenerateNudges };
 });
 
-vi.mock("@finance/db", () => ({ prisma: mockPrisma }));
+vi.mock("@worthlane/db", () => ({ prisma: mockPrisma }));
 vi.mock("@/lib/nudge-engine", () => ({
   generateNudgesForUser: mockGenerateNudges,
 }));

@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { prisma } from "@finance/db";
+import { prisma } from "@worthlane/db";
 import { verifyRefreshToken, signAccessToken, signRefreshToken } from "@/lib/auth";
 import { ok, err } from "@/lib/response";
 

@@ -1,4 +1,4 @@
-package com.financeapp.mobile
+package com.worthlane.mobile
 
 import android.os.Build
 import android.os.Bundle
