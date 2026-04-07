@@ -119,15 +119,6 @@ export interface StreakStatus {
   isActiveToday: boolean;
 }
 
-// Account summary
-export interface AccountSummary {
-  id: string;
-  name: string;
-  type: "CHECKING" | "SAVINGS" | "CREDIT" | "INVESTMENT" | "LOAN" | "OTHER";
-  currentBalance: number;
-  institutionName: string | null;
-}
-
 // Net worth history point
 export interface NetWorthPoint {
   date: string; // YYYY-MM-DD
