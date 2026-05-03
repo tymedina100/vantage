@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -19,6 +19,7 @@ import * as LocalAuthentication from "expo-local-authentication";
 import { LinkExit, LinkSuccess, openLink } from "react-native-plaid-link-sdk";
 import { useAuthStore } from "@/store/auth";
 import { ApiError, api } from "@/lib/api";
+import { useSubscription } from "@/hooks/useSubscription";
 import {
   ACCOUNT_TYPES,
   AccountSummary,
@@ -192,6 +193,7 @@ function ManualAccountModal({
 
 export default function ProfileScreen() {
   const { email, logout, biometricEnabled, enableBiometric, disableBiometric } = useAuthStore();
+  const { isPremium } = useSubscription();
   const [biometricSupported, setBiometricSupported] = useState(false);
   const [biometricLabel, setBiometricLabel] = useState("Biometrics");
   const [manualModalVisible, setManualModalVisible] = useState(false);
@@ -460,7 +462,16 @@ export default function ProfileScreen() {
           />
 
           <View style={styles.actionRow}>
-            <TouchableOpacity style={styles.primaryButton} onPress={() => launchPlaid("create")}>
+            <TouchableOpacity
+              style={styles.primaryButton}
+              onPress={() => {
+                if (!isPremium && plaidItems.length >= 1) {
+                  router.push("/paywall" as any);
+                  return;
+                }
+                launchPlaid("create");
+              }}
+            >
               <Text style={styles.primaryButtonText}>Connect bank</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.secondaryButton} onPress={openCreateManualAccount}>
