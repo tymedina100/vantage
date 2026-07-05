@@ -10,7 +10,10 @@ const { mockPrisma, mockGetAuthUser } = vi.hoisted(() => {
   return { mockPrisma, mockGetAuthUser };
 });
 
-vi.mock("@worthlane/db", () => ({ prisma: mockPrisma }));
+vi.mock("@worthlane/db", () => ({
+  prisma: mockPrisma,
+  AccountSource: { PLAID: "PLAID", MANUAL: "MANUAL" },
+}));
 vi.mock("@/lib/auth", () => ({ getAuthUser: mockGetAuthUser }));
 
 import { GET, POST } from "../route";
@@ -30,7 +33,7 @@ function makeTx(overrides = {}) {
     id: "tx-1",
     userId: USER_ID,
     accountId: "acc-1",
-    amount: "25.00",
+    amount: { toNumber: () => 25 },
     date: new Date("2026-03-10"),
     merchantName: "Starbucks",
     isImpulse: false,
@@ -115,7 +118,7 @@ describe("POST /api/transactions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetAuthUser.mockReturnValue({ sub: USER_ID, email: "user@test.com" });
-    mockPrisma.account.findFirst.mockResolvedValue({ id: "acc-1", userId: USER_ID });
+    mockPrisma.account.findFirst.mockResolvedValue({ id: "acc-1", userId: USER_ID, source: "MANUAL" });
   });
 
   it("returns 401 when not authenticated", async () => {

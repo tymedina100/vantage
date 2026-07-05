@@ -13,6 +13,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.110.0",
     "@sentry/nextjs": "^10.47.0",
     "@worthlane/db": "workspace:*",
     "@worthlane/types": "workspace:*",

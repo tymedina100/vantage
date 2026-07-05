@@ -25,6 +25,7 @@ model User {
   streaks               Streak[]
   nudges                Nudge[]
   passwordResetTokens   PasswordResetToken[]
+  netWorthSnapshots     NetWorthSnapshot[]
 }
 
 enum AccountType {
@@ -96,6 +97,7 @@ model Transaction {
 
   @@index([userId, date])
   @@index([accountId])
+  @@index([categoryId])
 }
 
 enum BudgetPeriodType {
@@ -206,10 +208,12 @@ model Nudge {
   type      NudgeType
   message   String
   sentAt    DateTime  @default(now())
+  day       DateTime  @db.Date @default(dbgenerated("CURRENT_DATE"))
   dismissed Boolean   @default(false)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([userId, type, day])
   @@index([userId, dismissed])
 }
 
@@ -249,4 +253,17 @@ model PlaidItem {
   updatedAt            DateTime        @updatedAt
 
   @@index([userId, status])
+}
+
+// Daily net worth snapshot per user (table created in 20260317000000_add_net_worth_snapshot)
+model NetWorthSnapshot {
+  id       String   @id @default(cuid())
+  userId   String
+  netWorth Decimal  @db.Decimal(12, 2)
+  date     DateTime @db.Date
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId, date])
 }

@@ -53,7 +53,7 @@ export interface PlaidItemSummary {
   accountCount: number;
 }
 
-export interface AccountSummary {
+export interface AccountDetail {
   id: string;
   name: string;
   institutionName: string | null;
@@ -68,7 +68,7 @@ export interface AccountSummary {
 }
 
 export interface AccountsResponse {
-  accounts: AccountSummary[];
+  accounts: AccountDetail[];
   plaidItems: PlaidItemSummary[];
 }
 
