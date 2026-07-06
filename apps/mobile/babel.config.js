@@ -10,7 +10,8 @@ module.exports = function (api) {
           alias: { "@": "./src" },
         },
       ],
-      "react-native-reanimated/plugin",
+      // Reanimated 4 moved its worklets Babel plugin into react-native-worklets.
+      "react-native-worklets/plugin",
     ],
   };
 };
