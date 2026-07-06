@@ -587,6 +587,34 @@ export default function ProfileScreen() {
         <View style={styles.section}>
           <SectionHeader title="Preferences" />
           <TouchableOpacity
+            style={[styles.card, { marginBottom: spacing.sm }]}
+            onPress={() => router.push("/accounts")}
+            accessibilityRole="button"
+            accessibilityLabel="View net worth and accounts"
+          >
+            <View style={styles.settingRow}>
+              <Text style={styles.settingLabel}>Net worth & accounts</Text>
+              <Text style={styles.accountEditHint}>›</Text>
+            </View>
+            <Text style={styles.settingDescription}>
+              See your net worth trend and every account in one place.
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.card, { marginBottom: spacing.sm }]}
+            onPress={() => router.push("/recurring")}
+            accessibilityRole="button"
+            accessibilityLabel="View recurring bills and subscriptions"
+          >
+            <View style={styles.settingRow}>
+              <Text style={styles.settingLabel}>Recurring & bills</Text>
+              <Text style={styles.accountEditHint}>›</Text>
+            </View>
+            <Text style={styles.settingDescription}>
+              Subscriptions and bills detected from your transactions, with due dates.
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
             style={styles.card}
             onPress={() => router.push("/categories")}
             accessibilityRole="button"

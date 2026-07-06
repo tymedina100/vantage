@@ -86,6 +86,32 @@ export async function generateNudgesForUser(userId: string): Promise<void> {
     }
   }
 
+  // --- Upcoming bill nudges ---
+  const threeDaysOut = new Date(now);
+  threeDaysOut.setDate(threeDaysOut.getDate() + 3);
+  const upcomingBills = await prisma.recurringTransaction.findMany({
+    where: {
+      userId,
+      isActive: true,
+      isMuted: false,
+      nextDueDate: { gte: now, lte: threeDaysOut },
+    },
+    orderBy: { nextDueDate: "asc" },
+    take: 2,
+  });
+
+  for (const bill of upcomingBills) {
+    const daysAway = Math.max(
+      0,
+      Math.round((bill.nextDueDate.getTime() - now.getTime()) / 86_400_000)
+    );
+    const when = daysAway === 0 ? "today" : daysAway === 1 ? "tomorrow" : `in ${daysAway} days`;
+    nudges.push({
+      type: NudgeType.BILL_DUE,
+      message: `${bill.displayName} ($${bill.averageAmount.toNumber().toFixed(0)}) hits ${when}. Make sure the money is there — overdraft fees are pure loss.`,
+    });
+  }
+
   // --- Weekly summary nudge (impulse spending) ---
   const sevenDaysAgo = new Date(now);
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);

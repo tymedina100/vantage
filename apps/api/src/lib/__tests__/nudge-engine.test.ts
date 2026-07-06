@@ -9,6 +9,7 @@ const { mockPrisma } = vi.hoisted(() => {
     goal: { findMany: vi.fn() },
     transaction: { aggregate: vi.fn(), findFirst: vi.fn() },
     nudge: { findFirst: vi.fn(), create: vi.fn() },
+    recurringTransaction: { findMany: vi.fn() },
   };
   return { mockPrisma };
 });
@@ -21,6 +22,7 @@ vi.mock("@worthlane/db", () => ({
     GOAL_MILESTONE: "GOAL_MILESTONE",
     WEEKLY_SUMMARY: "WEEKLY_SUMMARY",
     IMPULSE_FLAG: "IMPULSE_FLAG",
+    BILL_DUE: "BILL_DUE",
   },
 }));
 
@@ -56,6 +58,7 @@ beforeEach(() => {
   mockPrisma.nudge.create.mockResolvedValue({});
   mockPrisma.transaction.aggregate.mockResolvedValue(aggResult(0));
   mockPrisma.transaction.findFirst.mockResolvedValue(null);
+  mockPrisma.recurringTransaction.findMany.mockResolvedValue([]);
 });
 
 describe("BUDGET_WARNING nudge", () => {

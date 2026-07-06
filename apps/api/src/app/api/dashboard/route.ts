@@ -1,8 +1,9 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@worthlane/db";
 import { getAuthUser } from "@/lib/auth";
+import { computeNetWorth, startOfToday } from "@/lib/net-worth";
 import { ok, unauthorized } from "@/lib/response";
-import { startOfMonth, endOfMonth } from "@/lib/dates";
+import { startOfMonth } from "@/lib/dates";
 
 export async function GET(req: NextRequest) {
   let userId: string;
@@ -68,14 +69,10 @@ export async function GET(req: NextRequest) {
     ]);
 
   // Net worth
-  const netWorth = accounts.reduce((sum, a) => {
-    const bal = a.currentBalance.toNumber();
-    return sum + (a.type === "CREDIT" || a.type === "LOAN" ? -bal : bal);
-  }, 0);
+  const netWorth = computeNetWorth(accounts);
 
   // Upsert today's snapshot + fetch 90-day history
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = startOfToday();
   const ninetyDaysAgo = new Date(today);
   ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 

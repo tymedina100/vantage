@@ -134,6 +134,16 @@ export interface NetWorthPoint {
   value: number;
 }
 
+// GET /api/accounts/net-worth
+export interface NetWorthResponse {
+  current: number;
+  change: number;
+  changePercent: number;
+  range: number;
+  history: NetWorthPoint[];
+  breakdown: { assets: number; liabilities: number };
+}
+
 // Dashboard summary
 export interface DashboardSummary {
   netWorth: number;
@@ -162,6 +172,27 @@ export interface PlaidLinkTokenRequest {
 export interface PlaidExchangeRequest {
   publicToken: string;
   institutionName: string;
+}
+
+// Recurring transactions (subscriptions & bills)
+export type RecurringFrequency = "WEEKLY" | "BIWEEKLY" | "MONTHLY" | "QUARTERLY" | "YEARLY";
+
+export interface RecurringItem {
+  id: string;
+  displayName: string;
+  categoryId: string | null;
+  accountId: string | null;
+  averageAmount: number;
+  frequency: RecurringFrequency;
+  lastSeenDate: string; // YYYY-MM-DD
+  nextDueDate: string; // YYYY-MM-DD
+  occurrenceCount: number;
+  isMuted: boolean;
+}
+
+export interface RecurringResponse {
+  items: RecurringItem[];
+  monthlyTotal: number;
 }
 
 // Nudge
