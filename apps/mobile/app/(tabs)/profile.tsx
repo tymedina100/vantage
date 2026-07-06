@@ -28,6 +28,7 @@ import {
   formatRelativeSyncTime,
   getPlaidStatusTone,
 } from "@/lib/finance";
+import { PLAID_ENABLED } from "@/lib/flags";
 import { spacing, radius } from "@/lib/theme";
 import { useTheme, useThemedStyles, type Theme } from "@/lib/ThemeContext";
 
@@ -445,6 +446,36 @@ export default function ProfileScreen() {
     ]);
   };
 
+  const deleteAccountMutation = useMutation({
+    mutationFn: () => api.delete("/auth/account"),
+  });
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      "Delete account?",
+      "This permanently deletes your account and all data - accounts, transactions, budgets, goals, and streaks. This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete forever",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteAccountMutation.mutateAsync();
+              await logout();
+              router.replace("/(auth)/login");
+            } catch (error) {
+              Alert.alert(
+                "Could not delete account",
+                error instanceof Error ? error.message : "Please try again."
+              );
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const syncingAll = syncMutation.isPending;
 
   return (
@@ -467,21 +498,30 @@ export default function ProfileScreen() {
           />
 
           <View style={styles.actionRow}>
-            <TouchableOpacity style={styles.primaryButton} onPress={() => launchPlaid("create")}>
-              <Text style={styles.primaryButtonText}>Connect bank</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.secondaryButton} onPress={openCreateManualAccount}>
-              <Text style={styles.secondaryButtonText}>Add manual account</Text>
+            {PLAID_ENABLED ? (
+              <TouchableOpacity style={styles.primaryButton} onPress={() => launchPlaid("create")}>
+                <Text style={styles.primaryButtonText}>Connect bank</Text>
+              </TouchableOpacity>
+            ) : null}
+            <TouchableOpacity
+              style={PLAID_ENABLED ? styles.secondaryButton : styles.primaryButton}
+              onPress={openCreateManualAccount}
+            >
+              <Text style={PLAID_ENABLED ? styles.secondaryButtonText : styles.primaryButtonText}>
+                Add manual account
+              </Text>
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity
-            style={[styles.secondaryButton, styles.syncAllButton, syncingAll && styles.buttonDisabled]}
-            onPress={() => syncMutation.mutate(undefined)}
-            disabled={syncingAll}
-          >
-            <Text style={styles.secondaryButtonText}>{syncingAll ? "Syncing..." : "Sync every institution"}</Text>
-          </TouchableOpacity>
+          {PLAID_ENABLED || plaidItems.length > 0 ? (
+            <TouchableOpacity
+              style={[styles.secondaryButton, styles.syncAllButton, syncingAll && styles.buttonDisabled]}
+              onPress={() => syncMutation.mutate(undefined)}
+              disabled={syncingAll}
+            >
+              <Text style={styles.secondaryButtonText}>{syncingAll ? "Syncing..." : "Sync every institution"}</Text>
+            </TouchableOpacity>
+          ) : null}
 
           {accountsQuery.isLoading ? (
             <View style={styles.loadingCard}>
@@ -506,7 +546,9 @@ export default function ProfileScreen() {
             <View style={styles.emptyCard}>
               <Text style={styles.emptyTitle}>Nothing linked yet</Text>
               <Text style={styles.emptyBody}>
-                Connect a bank for automatic transactions, or add a manual account so budgets and goals still work if Plaid is unavailable.
+                {PLAID_ENABLED
+                  ? "Connect a bank for automatic transactions, or add a manual account so budgets and goals still work if Plaid is unavailable."
+                  : "Add a manual account to start tracking balances, budgets, and goals. Automatic bank sync is coming soon."}
               </Text>
             </View>
           ) : null}
@@ -669,6 +711,17 @@ export default function ProfileScreen() {
         <View style={styles.section}>
           <TouchableOpacity style={styles.dangerButton} onPress={handleLogout}>
             <Text style={styles.dangerButtonText}>Sign Out</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.deleteAccountButton}
+            onPress={handleDeleteAccount}
+            disabled={deleteAccountMutation.isPending}
+            accessibilityRole="button"
+            accessibilityLabel="Permanently delete account"
+          >
+            <Text style={styles.deleteAccountText}>
+              {deleteAccountMutation.isPending ? "Deleting..." : "Delete account"}
+            </Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -844,6 +897,8 @@ const createStyles = ({ colors, typography }: Theme) =>
     borderWidth: 1,
     borderColor: colors.danger,
   },
+  deleteAccountButton: { alignItems: "center", padding: spacing.md, marginTop: spacing.xs },
+  deleteAccountText: { color: colors.danger, fontSize: 14, fontWeight: "600" },
   dangerButtonText: { color: colors.danger, fontWeight: "700" },
   modalBackdrop: {
     flex: 1,

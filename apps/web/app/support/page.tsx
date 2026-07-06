@@ -28,7 +28,7 @@ const faqs = [
   },
   {
     q: "How do I delete my account?",
-    a: "To delete your account and all associated data, email us at support@worthlane.app with the subject line 'Delete my account' from your registered email address. We'll process your request within 30 days.",
+    a: "Open the Profile tab and tap 'Delete account' at the bottom. This immediately and permanently deletes your account and all associated data. You can also email us at support@worthlane.app if you need help.",
   },
   {
     q: "Why aren't my transactions updating?",

@@ -30,6 +30,9 @@ const schema = z
   })
   .superRefine((env, ctx) => {
     if (env.NODE_ENV !== "production") return;
+    // `next build` imports route modules with NODE_ENV=production but
+    // without runtime secrets; enforce the full set only when serving.
+    if (process.env.NEXT_PHASE === "phase-production-build") return;
     for (const key of PROD_REQUIRED) {
       if (!env[key]) {
         ctx.addIssue({

@@ -12,6 +12,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useQueryClient } from "@tanstack/react-query";
 import { openLink, LinkSuccess, LinkExit } from "react-native-plaid-link-sdk";
 import { api } from "@/lib/api";
+import { PLAID_ENABLED } from "@/lib/flags";
 import { spacing, radius } from "@/lib/theme";
 import { useTheme, useThemedStyles, type Theme } from "@/lib/ThemeContext";
 
@@ -83,24 +84,34 @@ export default function OnboardingWelcome() {
           <Text style={styles.wordmark}>WORTHLANE</Text>
           <Text style={styles.heading}>Let's build your{"\n"}financial picture.</Text>
           <Text style={styles.subtitle}>
-            Connect your bank to automatically track spending, budgets, and progress toward your goals.
+            {PLAID_ENABLED
+              ? "Connect your bank to automatically track spending, budgets, and progress toward your goals."
+              : "Track spending, budgets, and progress toward your goals - starting with a quick setup."}
           </Text>
         </View>
 
         <View style={styles.actions}>
-          <TouchableOpacity
-            style={[styles.primaryButton, connecting && styles.buttonDisabled]}
-            onPress={handleConnectBank}
-            disabled={connecting}
-          >
-            <Text style={styles.primaryButtonText}>
-              {connecting ? "Opening…" : "Connect a Bank Account"}
-            </Text>
-          </TouchableOpacity>
+          {PLAID_ENABLED ? (
+            <>
+              <TouchableOpacity
+                style={[styles.primaryButton, connecting && styles.buttonDisabled]}
+                onPress={handleConnectBank}
+                disabled={connecting}
+              >
+                <Text style={styles.primaryButtonText}>
+                  {connecting ? "Opening…" : "Connect a Bank Account"}
+                </Text>
+              </TouchableOpacity>
 
-          <TouchableOpacity style={styles.skipButton} onPress={skip}>
-            <Text style={styles.skipText}>Do this later →</Text>
-          </TouchableOpacity>
+              <TouchableOpacity style={styles.skipButton} onPress={skip}>
+                <Text style={styles.skipText}>Do this later →</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <TouchableOpacity style={styles.primaryButton} onPress={skip}>
+              <Text style={styles.primaryButtonText}>Get Started</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </SafeAreaView>
