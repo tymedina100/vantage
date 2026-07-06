@@ -576,6 +576,24 @@ export default function ProfileScreen() {
           ) : null}
         </View>
 
+        <View style={styles.section}>
+          <SectionHeader title="Preferences" />
+          <TouchableOpacity
+            style={styles.card}
+            onPress={() => router.push("/categories")}
+            accessibilityRole="button"
+            accessibilityLabel="Manage categories"
+          >
+            <View style={styles.settingRow}>
+              <Text style={styles.settingLabel}>Manage categories</Text>
+              <Text style={styles.accountEditHint}>›</Text>
+            </View>
+            <Text style={styles.settingDescription}>
+              Create custom spending categories or edit the ones you've added.
+            </Text>
+          </TouchableOpacity>
+        </View>
+
         {biometricSupported ? (
           <View style={styles.section}>
             <SectionHeader title="Security" />
