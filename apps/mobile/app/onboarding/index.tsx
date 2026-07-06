@@ -12,9 +12,11 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useQueryClient } from "@tanstack/react-query";
 import { openLink, LinkSuccess, LinkExit } from "react-native-plaid-link-sdk";
 import { api } from "@/lib/api";
-import { colors, spacing, radius, typography } from "@/lib/theme";
+import { spacing, radius } from "@/lib/theme";
+import { useTheme, useThemedStyles, type Theme } from "@/lib/ThemeContext";
 
 function ProgressDots({ current, total }: { current: number; total: number }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.dots}>
       {Array.from({ length: total }).map((_, i) => (
@@ -28,6 +30,7 @@ function ProgressDots({ current, total }: { current: number; total: number }) {
 }
 
 export default function OnboardingWelcome() {
+  const styles = useThemedStyles(createStyles);
   const [connecting, setConnecting] = useState(false);
   const qc = useQueryClient();
 
@@ -104,7 +107,8 @@ export default function OnboardingWelcome() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors, typography }: Theme) =>
+  StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   inner: { flex: 1, padding: spacing.xl, justifyContent: "space-between" },
   dots: { flexDirection: "row", gap: spacing.xs, paddingTop: spacing.sm },

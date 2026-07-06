@@ -15,7 +15,8 @@ import { router } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "@/lib/api";
-import { colors, spacing, radius, typography } from "@/lib/theme";
+import { spacing, radius } from "@/lib/theme";
+import { useTheme, useThemedStyles, type Theme } from "@/lib/ThemeContext";
 import type { Category } from "@worthlane/types";
 
 const PRESET_COLORS = [
@@ -37,6 +38,8 @@ interface CategoryModalProps {
 }
 
 function CategoryModal({ visible, initial, onClose }: CategoryModalProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [name, setName] = useState(initial?.name ?? "");
   const [icon, setIcon] = useState(initial?.icon ?? PRESET_ICONS[0]);
   const [color, setColor] = useState(initial?.color ?? PRESET_COLORS[0]);
@@ -140,6 +143,7 @@ function CategoryModal({ visible, initial, onClose }: CategoryModalProps) {
 }
 
 export default function CategoriesScreen() {
+  const styles = useThemedStyles(createStyles);
   const [modalVisible, setModalVisible] = useState(false);
   const [editing, setEditing] = useState<Category | undefined>(undefined);
   const queryClient = useQueryClient();
@@ -263,7 +267,8 @@ export default function CategoriesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors, typography }: Theme) =>
+  StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   header: {
     flexDirection: "row",

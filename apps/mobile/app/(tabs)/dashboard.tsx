@@ -10,14 +10,15 @@ import {
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import type { AccountsResponse } from "@/lib/finance";
-import { colors, spacing, radius, typography } from "@/lib/theme";
+import { spacing, radius } from "@/lib/theme";
+import { useTheme, useThemedStyles, type Theme } from "@/lib/ThemeContext";
 import type { DashboardSummary, BudgetWithSpent, StreakStatus, NudgeMessage } from "@worthlane/types";
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(amount);
 }
 
-function getBudgetColor(percentUsed: number): string {
+function getBudgetColor(percentUsed: number, colors: Theme["colors"]): string {
   if (percentUsed >= 100) return colors.danger;
   if (percentUsed >= 80) return colors.warning;
   return colors.success;
@@ -34,6 +35,7 @@ function getBudgetMessage(b: BudgetWithSpent): string {
 }
 
 function StreakBadge({ streak }: { streak: StreakStatus }) {
+  const styles = useThemedStyles(createStyles);
   const label =
     streak.type === "DAILY_CHECKIN"
       ? "Daily Check-in"
@@ -53,6 +55,7 @@ function StreakBadge({ streak }: { streak: StreakStatus }) {
 }
 
 function NudgeCard({ nudge, onDismiss }: { nudge: NudgeMessage; onDismiss: () => void }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.nudgeCard}>
       <Text style={styles.nudgeText}>{nudge.message}</Text>
@@ -64,6 +67,8 @@ function NudgeCard({ nudge, onDismiss }: { nudge: NudgeMessage; onDismiss: () =>
 }
 
 export default function DashboardScreen() {
+  const { colors, typography } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const qc = useQueryClient();
 
   const {
@@ -217,7 +222,7 @@ export default function DashboardScreen() {
                 <Text
                   style={[
                     styles.budgetAmount,
-                    { color: getBudgetColor(b.percentUsed) },
+                    { color: getBudgetColor(b.percentUsed, colors) },
                   ]}
                 >
                   {formatCurrency(b.spent)} / {formatCurrency(b.amount)}
@@ -229,7 +234,7 @@ export default function DashboardScreen() {
                     styles.budgetBarFill,
                     {
                       width: `${Math.min(100, b.percentUsed)}%`,
-                      backgroundColor: getBudgetColor(b.percentUsed),
+                      backgroundColor: getBudgetColor(b.percentUsed, colors),
                     },
                   ]}
                 />
@@ -314,7 +319,8 @@ export default function DashboardScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors, typography }: Theme) =>
+  StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.md, paddingBottom: spacing.xxl },
   loadingContainer: {

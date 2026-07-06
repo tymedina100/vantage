@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
-import { colors, spacing, typography } from "@/lib/theme";
+import { spacing, radius } from "@/lib/theme";
+import { useThemedStyles, type Theme } from "@/lib/ThemeContext";
 
 interface State {
   hasError: boolean;
@@ -9,6 +10,21 @@ interface State {
 
 interface Props {
   children: React.ReactNode;
+}
+
+// Hooks can't live in the class, so the themed UI is a functional child.
+function ErrorFallback({ error, onReset }: { error: Error | null; onReset: () => void }) {
+  const styles = useThemedStyles(createStyles);
+  return (
+    <View style={styles.container}>
+      <Text style={styles.emoji}>⚠️</Text>
+      <Text style={styles.title}>Something went wrong</Text>
+      <Text style={styles.message}>{error?.message ?? "An unexpected error occurred."}</Text>
+      <TouchableOpacity style={styles.button} onPress={onReset} accessibilityRole="button">
+        <Text style={styles.buttonText}>Try again</Text>
+      </TouchableOpacity>
+    </View>
+  );
 }
 
 export class ErrorBoundary extends React.Component<Props, State> {
@@ -26,55 +42,43 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   render() {
     if (!this.state.hasError) return this.props.children;
-
-    return (
-      <View style={styles.container}>
-        <Text style={styles.emoji}>⚠️</Text>
-        <Text style={styles.title}>Something went wrong</Text>
-        <Text style={styles.message}>
-          {this.state.error?.message ?? "An unexpected error occurred."}
-        </Text>
-        <TouchableOpacity style={styles.button} onPress={this.reset}>
-          <Text style={styles.buttonText}>Try again</Text>
-        </TouchableOpacity>
-      </View>
-    );
+    return <ErrorFallback error={this.state.error} onReset={this.reset} />;
   }
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.bg,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: spacing.xl,
-  },
-  emoji: {
-    fontSize: 48,
-    marginBottom: spacing.md,
-  },
-  title: {
-    ...typography.h2,
-    color: colors.text,
-    marginBottom: spacing.sm,
-    textAlign: "center",
-  },
-  message: {
-    ...typography.body,
-    color: colors.textMuted,
-    textAlign: "center",
-    marginBottom: spacing.xl,
-  },
-  button: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.md,
-    borderRadius: 8,
-  },
-  buttonText: {
-    ...typography.body,
-    color: colors.bg,
-    fontWeight: "700",
-  },
-});
+const createStyles = ({ colors, typography }: Theme) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.bg,
+      alignItems: "center",
+      justifyContent: "center",
+      padding: spacing.xl,
+    },
+    emoji: {
+      fontSize: 48,
+      marginBottom: spacing.md,
+    },
+    title: {
+      ...typography.h2,
+      marginBottom: spacing.sm,
+      textAlign: "center",
+    },
+    message: {
+      ...typography.body,
+      color: colors.textMuted,
+      textAlign: "center",
+      marginBottom: spacing.xl,
+    },
+    button: {
+      backgroundColor: colors.primary,
+      paddingHorizontal: spacing.xl,
+      paddingVertical: spacing.md,
+      borderRadius: radius.sm,
+    },
+    buttonText: {
+      ...typography.body,
+      color: colors.onPrimary,
+      fontWeight: "700",
+    },
+  });

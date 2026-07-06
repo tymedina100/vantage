@@ -28,7 +28,8 @@ import {
   formatRelativeSyncTime,
   getPlaidStatusTone,
 } from "@/lib/finance";
-import { colors, spacing, radius, typography } from "@/lib/theme";
+import { spacing, radius } from "@/lib/theme";
+import { useTheme, useThemedStyles, type Theme } from "@/lib/ThemeContext";
 
 type ManualAccountDraft = {
   id?: string;
@@ -71,6 +72,7 @@ function bankActionErrorMessage(error: unknown) {
 }
 
 function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.sectionHeader}>
       <Text style={styles.sectionTitle}>{title}</Text>
@@ -80,6 +82,8 @@ function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }
 }
 
 function StatusPill({ item }: { item: PlaidItemSummary }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const tone = getPlaidStatusTone(item.status);
   const backgroundColor =
     tone.color === "success"
@@ -118,6 +122,8 @@ function ManualAccountModal({
   onSubmit: () => void;
   onDelete: (() => void) | null;
 }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.modalBackdrop}>
@@ -191,6 +197,8 @@ function ManualAccountModal({
 }
 
 export default function ProfileScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const { email, logout, biometricEnabled, enableBiometric, disableBiometric } = useAuthStore();
   const [biometricSupported, setBiometricSupported] = useState(false);
   const [biometricLabel, setBiometricLabel] = useState("Biometrics");
@@ -640,7 +648,8 @@ export default function ProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors, typography }: Theme) =>
+  StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.md, paddingBottom: spacing.xxl },
   title: { ...typography.h2, marginBottom: spacing.lg },

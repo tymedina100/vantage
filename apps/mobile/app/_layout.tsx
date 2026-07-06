@@ -5,7 +5,7 @@ import { StatusBar } from "expo-status-bar";
 import { Sentry } from "@/lib/sentry";
 import { isPostHogEnabled, posthog } from "@/lib/posthog";
 import { useAuthStore } from "@/store/auth";
-import { colors } from "@/lib/theme";
+import { ThemeProvider, useTheme } from "@/lib/ThemeContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const queryClient = new QueryClient({
@@ -17,6 +17,29 @@ const queryClient = new QueryClient({
   },
 });
 
+function ThemedApp() {
+  const { colors, scheme } = useTheme();
+
+  return (
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <AnalyticsScreenTracker />
+        <StatusBar style={scheme === "dark" ? "light" : "dark"} />
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: colors.bg },
+          }}
+        >
+          <Stack.Screen name="(auth)" />
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="onboarding" />
+        </Stack>
+      </QueryClientProvider>
+    </ErrorBoundary>
+  );
+}
+
 function RootLayout() {
   const hydrate = useAuthStore((s) => s.hydrate);
 
@@ -25,22 +48,9 @@ function RootLayout() {
   }, []);
 
   return (
-    <ErrorBoundary>
-    <QueryClientProvider client={queryClient}>
-      <AnalyticsScreenTracker />
-      <StatusBar style="light" />
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          contentStyle: { backgroundColor: colors.bg },
-        }}
-      >
-        <Stack.Screen name="(auth)" />
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="onboarding" />
-      </Stack>
-    </QueryClientProvider>
-    </ErrorBoundary>
+    <ThemeProvider>
+      <ThemedApp />
+    </ThemeProvider>
   );
 }
 

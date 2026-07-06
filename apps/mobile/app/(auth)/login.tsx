@@ -11,7 +11,8 @@ import {
 import { router } from "expo-router";
 import * as LocalAuthentication from "expo-local-authentication";
 import { useAuthStore } from "@/store/auth";
-import { colors, spacing, radius, typography } from "@/lib/theme";
+import { spacing, radius } from "@/lib/theme";
+import { useTheme, useThemedStyles, type Theme } from "@/lib/ThemeContext";
 
 function getBiometricLabel(types: LocalAuthentication.AuthenticationType[]): string {
   if (types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) {
@@ -24,6 +25,8 @@ function getBiometricLabel(types: LocalAuthentication.AuthenticationType[]): str
 }
 
 export default function LoginScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const { login, loginWithBiometric, enableBiometric, biometricEnabled, rememberedEmail, setRememberedEmail } = useAuthStore();
 
   const [email, setEmail] = useState(rememberedEmail ?? "");
@@ -204,7 +207,8 @@ export default function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors, typography }: Theme) =>
+  StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.bg,

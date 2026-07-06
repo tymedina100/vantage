@@ -15,14 +15,17 @@ import {
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "@/lib/api";
-import { colors, spacing, radius, typography } from "@/lib/theme";
+import { spacing, radius } from "@/lib/theme";
+import { useTheme, useThemedStyles, type Theme } from "@/lib/ThemeContext";
+import { EmptyState } from "@/components/EmptyState";
+import { Ionicons } from "@expo/vector-icons";
 import type { BudgetWithSpent, Category } from "@worthlane/types";
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(amount);
 }
 
-function getBudgetColor(percentUsed: number): string {
+function getBudgetColor(percentUsed: number, colors: Theme["colors"]): string {
   if (percentUsed >= 100) return colors.danger;
   if (percentUsed >= 80) return colors.warning;
   return colors.success;
@@ -43,7 +46,9 @@ function getLossAversionMessage(b: BudgetWithSpent): { text: string; urgent: boo
 }
 
 function BudgetCard({ budget, onEdit, onDelete }: { budget: BudgetWithSpent; onEdit: () => void; onDelete: () => void }) {
-  const color = getBudgetColor(budget.percentUsed);
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
+  const color = getBudgetColor(budget.percentUsed, colors);
   const { text, urgent } = getLossAversionMessage(budget);
 
   return (
@@ -55,11 +60,25 @@ function BudgetCard({ budget, onEdit, onDelete }: { budget: BudgetWithSpent; onE
         </View>
         <View style={styles.cardActions}>
           <Text style={styles.budgetTotal}>{formatCurrency(budget.amount)}/mo</Text>
-          <TouchableOpacity onPress={onEdit} style={styles.actionButton} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Text style={styles.actionButtonText}>✏️</Text>
+          <TouchableOpacity
+            onPress={onEdit}
+            style={styles.actionButton}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={`Edit ${budget.categoryName} budget`}
+          >
+            <Ionicons name="pencil" size={16} color={colors.textMuted} />
           </TouchableOpacity>
-          <TouchableOpacity onPress={onDelete} style={styles.actionButton} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Text style={styles.actionButtonText}>🗑️</Text>
+          <TouchableOpacity
+            onPress={onDelete}
+            style={styles.actionButton}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={`Delete ${budget.categoryName} budget`}
+          >
+            <Ionicons name="trash-outline" size={16} color={colors.textMuted} />
           </TouchableOpacity>
         </View>
       </View>
@@ -97,6 +116,8 @@ function BudgetCard({ budget, onEdit, onDelete }: { budget: BudgetWithSpent; onE
 }
 
 function EditBudgetModal({ budget, visible, onClose }: { budget: BudgetWithSpent | null; visible: boolean; onClose: () => void }) {
+  const { colors, typography } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [amount, setAmount] = useState(budget?.amount.toString() ?? "");
   const [period, setPeriod] = useState<"MONTHLY" | "WEEKLY">((budget?.period as "MONTHLY" | "WEEKLY") ?? "MONTHLY");
   const queryClient = useQueryClient();
@@ -167,6 +188,8 @@ function EditBudgetModal({ budget, visible, onClose }: { budget: BudgetWithSpent
 }
 
 function CreateBudgetModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const { colors, typography } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [amount, setAmount] = useState("");
   const [period, setPeriod] = useState<"MONTHLY" | "WEEKLY">("MONTHLY");
@@ -252,6 +275,8 @@ function CreateBudgetModal({ visible, onClose }: { visible: boolean; onClose: ()
 }
 
 export default function BudgetsScreen() {
+  const { colors, typography } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [createVisible, setCreateVisible] = useState(false);
   const [editBudget, setEditBudget] = useState<BudgetWithSpent | null>(null);
   const queryClient = useQueryClient();
@@ -306,16 +331,13 @@ export default function BudgetsScreen() {
         ))}
 
         {budgets?.length === 0 && (
-          <View style={styles.emptyState}>
-            <Text style={{ fontSize: 48 }}>📊</Text>
-            <Text style={typography.h3}>No budgets yet</Text>
-            <Text style={[typography.bodySmall, { textAlign: "center" }]}>
-              Set a budget to start tracking your spending with loss-aversion nudges.
-            </Text>
-            <TouchableOpacity style={styles.submitButton} onPress={() => setCreateVisible(true)}>
-              <Text style={styles.submitButtonText}>Create a Budget</Text>
-            </TouchableOpacity>
-          </View>
+          <EmptyState
+            icon="pie-chart"
+            title="No budgets yet"
+            body="Set a budget to start tracking your spending with loss-aversion nudges."
+            actionLabel="Create a Budget"
+            onAction={() => setCreateVisible(true)}
+          />
         )}
       </ScrollView>
 
@@ -325,7 +347,8 @@ export default function BudgetsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors, typography }: Theme) =>
+  StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.md, paddingBottom: spacing.xxl },
   titleRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: spacing.lg },
