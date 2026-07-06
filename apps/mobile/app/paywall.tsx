@@ -11,11 +11,18 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import Purchases, { PurchasesPackage } from "react-native-purchases";
+import type { PurchasesPackage } from "react-native-purchases";
 import { useEffect } from "react";
-import { PREMIUM_ENTITLEMENT, PRODUCT_IDS } from "@/hooks/useSubscription";
+import { PREMIUM_ENTITLEMENT, PRODUCT_IDS, REVENUECAT_ENABLED } from "@/hooks/useSubscription";
 import { spacing, radius } from "@/lib/theme";
 import { useTheme, useThemedStyles, type Theme } from "@/lib/ThemeContext";
+import { EmptyState } from "@/components/EmptyState";
+
+// Lazily required so the native module is never touched when RevenueCat
+// isn't configured yet (see useSubscription.ts for why).
+function getPurchases() {
+  return require("react-native-purchases").default as typeof import("react-native-purchases").default;
+}
 
 const FEATURES = [
   { icon: "sparkles", label: "Worthlane AI", description: "Ask anything about your finances, anytime" },
@@ -33,7 +40,9 @@ export default function PaywallScreen() {
   const [restoring, setRestoring] = useState(false);
 
   useEffect(() => {
-    Purchases.getOfferings()
+    if (!REVENUECAT_ENABLED) return;
+    getPurchases()
+      .getOfferings()
       .then((offerings) => {
         const pkgs = offerings.current?.availablePackages ?? [];
         setPackages(pkgs);
@@ -52,6 +61,21 @@ export default function PaywallScreen() {
   const monthlyPackage = packages.find((p) => p.product.identifier === PRODUCT_IDS.monthly);
   const annualPackage = packages.find((p) => p.product.identifier === PRODUCT_IDS.annual);
 
+  if (!REVENUECAT_ENABLED) {
+    return (
+      <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+        <TouchableOpacity style={styles.closeButton} onPress={() => router.back()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Ionicons name="close" size={22} color={colors.textMuted} />
+        </TouchableOpacity>
+        <EmptyState
+          icon="sparkles"
+          title="Premium is coming soon"
+          body="Worthlane Premium isn't available for purchase yet. Check back soon!"
+        />
+      </SafeAreaView>
+    );
+  }
+
   const handlePurchase = async () => {
     if (!selectedPackage) {
       Alert.alert("Unavailable", "Subscription products aren't available right now. Please try again later.");
@@ -60,7 +84,7 @@ export default function PaywallScreen() {
 
     setPurchasing(true);
     try {
-      const { customerInfo } = await Purchases.purchasePackage(selectedPackage);
+      const { customerInfo } = await getPurchases().purchasePackage(selectedPackage);
       if (customerInfo.entitlements.active[PREMIUM_ENTITLEMENT]) {
         router.back();
       }
@@ -76,7 +100,7 @@ export default function PaywallScreen() {
   const handleRestore = async () => {
     setRestoring(true);
     try {
-      const info = await Purchases.restorePurchases();
+      const info = await getPurchases().restorePurchases();
       if (info.entitlements.active[PREMIUM_ENTITLEMENT]) {
         Alert.alert("Restored", "Your Premium subscription has been restored.", [
           { text: "OK", onPress: () => router.back() },
