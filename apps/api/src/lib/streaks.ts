@@ -39,10 +39,22 @@ export async function evaluateDailyCheckin(userId: string, now: Date) {
     const isContinuing = streak.lastActivityAt && isYesterday(streak.lastActivityAt);
     const newCount = isContinuing ? streak.currentCount + 1 : 1;
     const newLongest = Math.max(newCount, streak.longestCount);
-    updatedStreak = await prisma.streak.update({
-      where: { userId_type: { userId, type: StreakType.DAILY_CHECKIN } },
+    // The date guard in the WHERE makes concurrent check-ins race-safe:
+    // only the first one still sees a pre-today lastActivityAt.
+    const guarded = await prisma.streak.updateMany({
+      where: {
+        userId,
+        type: StreakType.DAILY_CHECKIN,
+        OR: [{ lastActivityAt: null }, { lastActivityAt: { lt: startOfDay(now) } }],
+      },
       data: { currentCount: newCount, longestCount: newLongest, lastActivityAt: now },
     });
+    updatedStreak = await prisma.streak.findUniqueOrThrow({
+      where: { userId_type: { userId, type: StreakType.DAILY_CHECKIN } },
+    });
+    if (guarded.count === 0) {
+      return { streak: updatedStreak, alreadyCheckedIn: true };
+    }
   }
 
   return { streak: updatedStreak, alreadyCheckedIn };
@@ -89,8 +101,12 @@ export async function evaluateWeeklyOnBudget(userId: string, now: Date) {
       const isContinuing = weeklyStreak.currentCount > 0;
       const newCount = isContinuing ? weeklyStreak.currentCount + 1 : 1;
       const newLongest = Math.max(newCount, weeklyStreak.longestCount);
-      await prisma.streak.update({
-        where: { userId_type: { userId, type: StreakType.WEEKLY_ON_BUDGET } },
+      await prisma.streak.updateMany({
+        where: {
+          userId,
+          type: StreakType.WEEKLY_ON_BUDGET,
+          OR: [{ lastActivityAt: null }, { lastActivityAt: { lt: startOfWeek(now) } }],
+        },
         data: { currentCount: newCount, longestCount: newLongest, lastActivityAt: now },
       });
     } else {
@@ -126,8 +142,12 @@ export async function evaluateNoImpulsePurchases(userId: string, now: Date) {
       const isContinuing = impulseStreak.lastActivityAt && isYesterday(impulseStreak.lastActivityAt);
       const newCount = isContinuing ? impulseStreak.currentCount + 1 : 1;
       const newLongest = Math.max(newCount, impulseStreak.longestCount);
-      await prisma.streak.update({
-        where: { userId_type: { userId, type: StreakType.NO_IMPULSE_PURCHASES } },
+      await prisma.streak.updateMany({
+        where: {
+          userId,
+          type: StreakType.NO_IMPULSE_PURCHASES,
+          OR: [{ lastActivityAt: null }, { lastActivityAt: { lt: startOfDay(now) } }],
+        },
         data: { currentCount: newCount, longestCount: newLongest, lastActivityAt: now },
       });
     } else {

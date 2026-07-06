@@ -12,6 +12,8 @@ import {
   refreshTransactions,
   syncTransactions,
 } from "./plaid";
+import { detectRecurringForUser } from "./recurring";
+import { captureServerException } from "./sentry";
 
 function mapPlaidAccountType(type: string, subtype?: string | null): AccountType {
   switch (type) {
@@ -244,6 +246,17 @@ export async function syncPlaidItemRecord(
         lastSyncAt: now,
       },
     });
+
+    // Fresh transactions may reveal new subscriptions/bills — refresh the
+    // detector, but never let it fail the sync itself.
+    if (addedTransactions.length > 0 || modifiedTransactions.length > 0) {
+      detectRecurringForUser(item.userId).catch((error) =>
+        captureServerException(error, {
+          tags: { lib: "plaid-sync", step: "recurring" },
+          extra: { userId: item.userId, plaidItemId: item.id },
+        })
+      );
+    }
 
     return {
       plaidItemId: item.id,

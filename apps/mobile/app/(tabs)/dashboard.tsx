@@ -7,17 +7,30 @@ import {
   RefreshControl,
   TouchableOpacity,
 } from "react-native";
+import { router } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import type { AccountsResponse } from "@/lib/finance";
-import { colors, spacing, radius, typography } from "@/lib/theme";
-import type { DashboardSummary, BudgetWithSpent, StreakStatus, NudgeMessage } from "@worthlane/types";
+import { spacing, radius } from "@/lib/theme";
+import { useTheme, useThemedStyles, type Theme } from "@/lib/ThemeContext";
+import type { DashboardSummary, BudgetWithSpent, StreakStatus, NudgeMessage, RecurringResponse } from "@worthlane/types";
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(amount);
 }
 
-function getBudgetColor(percentUsed: number): string {
+function formatDueLabel(dateStr: string): string {
+  const due = new Date(`${dateStr}T12:00:00`);
+  const now = new Date();
+  now.setHours(12, 0, 0, 0);
+  const days = Math.round((due.getTime() - now.getTime()) / 86_400_000);
+  if (days < 0) return `${Math.abs(days)}d overdue`;
+  if (days === 0) return "Due today";
+  if (days === 1) return "Due tomorrow";
+  return `Due in ${days} days`;
+}
+
+function getBudgetColor(percentUsed: number, colors: Theme["colors"]): string {
   if (percentUsed >= 100) return colors.danger;
   if (percentUsed >= 80) return colors.warning;
   return colors.success;
@@ -34,6 +47,7 @@ function getBudgetMessage(b: BudgetWithSpent): string {
 }
 
 function StreakBadge({ streak }: { streak: StreakStatus }) {
+  const styles = useThemedStyles(createStyles);
   const label =
     streak.type === "DAILY_CHECKIN"
       ? "Daily Check-in"
@@ -53,6 +67,7 @@ function StreakBadge({ streak }: { streak: StreakStatus }) {
 }
 
 function NudgeCard({ nudge, onDismiss }: { nudge: NudgeMessage; onDismiss: () => void }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.nudgeCard}>
       <Text style={styles.nudgeText}>{nudge.message}</Text>
@@ -64,6 +79,8 @@ function NudgeCard({ nudge, onDismiss }: { nudge: NudgeMessage; onDismiss: () =>
 }
 
 export default function DashboardScreen() {
+  const { colors, typography } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const qc = useQueryClient();
 
   const {
@@ -87,9 +104,17 @@ export default function DashboardScreen() {
     queryFn: () => api.get<AccountsResponse>("/accounts"),
   });
 
+  const { data: recurring } = useQuery({
+    queryKey: ["recurring"],
+    queryFn: () => api.get<RecurringResponse>("/recurring"),
+  });
+
   const checkinMutation = useMutation({
     mutationFn: () => api.post("/streaks/checkin"),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["dashboard"] }),
+    // Auto check-in is best-effort; a failure shouldn't interrupt the
+    // dashboard, but it should not be silently swallowed either.
+    onError: (e) => console.warn("Daily check-in failed:", e),
   });
 
   const dismissNudge = useMutation({
@@ -147,8 +172,17 @@ export default function DashboardScreen() {
       }
     >
       {/* Net Worth */}
-      <View style={styles.netWorthCard}>
-        <Text style={styles.netWorthLabel}>Net Worth</Text>
+      <TouchableOpacity
+        style={styles.netWorthCard}
+        onPress={() => router.push("/accounts")}
+        activeOpacity={0.8}
+        accessibilityRole="button"
+        accessibilityLabel="View net worth history and accounts"
+      >
+        <View style={styles.netWorthHeader}>
+          <Text style={styles.netWorthLabel}>Net Worth</Text>
+          <Text style={styles.netWorthLink}>Details ›</Text>
+        </View>
         <Text style={styles.netWorthAmount}>{formatCurrency(d?.netWorth ?? 0)}</Text>
         <View style={styles.cashFlowRow}>
           <View>
@@ -164,7 +198,7 @@ export default function DashboardScreen() {
             </Text>
           </View>
         </View>
-      </View>
+      </TouchableOpacity>
 
       {showFirstRunState ? (
         <View style={styles.firstRunCard}>
@@ -205,7 +239,16 @@ export default function DashboardScreen() {
       {/* Budget Overview */}
       {d?.budgets && d.budgets.length > 0 && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Budgets</Text>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Budgets</Text>
+            <TouchableOpacity
+              onPress={() => router.push("/reports")}
+              accessibilityRole="button"
+              accessibilityLabel="Open spending reports"
+            >
+              <Text style={styles.sectionLink}>Reports ›</Text>
+            </TouchableOpacity>
+          </View>
           {d.budgets.map((b) => (
             <View key={b.id} style={styles.budgetItem}>
               <View style={styles.budgetHeader}>
@@ -214,7 +257,7 @@ export default function DashboardScreen() {
                 <Text
                   style={[
                     styles.budgetAmount,
-                    { color: getBudgetColor(b.percentUsed) },
+                    { color: getBudgetColor(b.percentUsed, colors) },
                   ]}
                 >
                   {formatCurrency(b.spent)} / {formatCurrency(b.amount)}
@@ -226,7 +269,7 @@ export default function DashboardScreen() {
                     styles.budgetBarFill,
                     {
                       width: `${Math.min(100, b.percentUsed)}%`,
-                      backgroundColor: getBudgetColor(b.percentUsed),
+                      backgroundColor: getBudgetColor(b.percentUsed, colors),
                     },
                   ]}
                 />
@@ -234,6 +277,38 @@ export default function DashboardScreen() {
               <Text style={styles.budgetMessage}>{getBudgetMessage(b)}</Text>
             </View>
           ))}
+        </View>
+      )}
+
+      {/* Upcoming bills */}
+      {recurring && recurring.items.length > 0 && (
+        <View style={styles.section}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Upcoming bills</Text>
+            <TouchableOpacity
+              onPress={() => router.push("/recurring")}
+              accessibilityRole="button"
+              accessibilityLabel="See all recurring bills"
+            >
+              <Text style={styles.sectionLink}>See all ›</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.billsCard}>
+            {recurring.items.slice(0, 3).map((item, i) => (
+              <View key={item.id}>
+                {i > 0 ? <View style={styles.billsDivider} /> : null}
+                <View style={styles.billRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.billName} numberOfLines={1}>
+                      {item.displayName}
+                    </Text>
+                    <Text style={styles.billDue}>{formatDueLabel(item.nextDueDate)}</Text>
+                  </View>
+                  <Text style={styles.billAmount}>{formatCurrency(item.averageAmount)}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
         </View>
       )}
 
@@ -311,7 +386,8 @@ export default function DashboardScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors, typography }: Theme) =>
+  StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.md, paddingBottom: spacing.xxl },
   loadingContainer: {
@@ -339,6 +415,22 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   retryButtonText: { color: colors.white, fontWeight: "700" },
+  sectionHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  sectionLink: { fontSize: 13, fontWeight: "600", color: colors.primary },
+  billsCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+  },
+  billRow: { flexDirection: "row", alignItems: "center", paddingVertical: spacing.sm + 4 },
+  billName: { ...typography.body, fontWeight: "600" },
+  billDue: { ...typography.caption, marginTop: 2 },
+  billAmount: { ...typography.body, fontWeight: "700" },
+  billsDivider: { height: 1, backgroundColor: colors.border },
+  netWorthHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  netWorthLink: { fontSize: 13, fontWeight: "600", color: colors.primary },
   netWorthCard: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,

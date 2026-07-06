@@ -26,7 +26,14 @@ jobs:
         run: pnpm --filter @worthlane/db exec prisma generate
 
       - name: Typecheck
-        run: pnpm --filter @worthlane/api exec tsc --noEmit
+        run: pnpm typecheck
 
       - name: Test
         run: pnpm test
+
+      - name: Build
+        run: pnpm --filter @worthlane/api build
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+          JWT_SECRET: ci-only-jwt-secret-at-least-32-characters!!
+          JWT_REFRESH_SECRET: ci-only-refresh-secret-at-least-32-chars!!

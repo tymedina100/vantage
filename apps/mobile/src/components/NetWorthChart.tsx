@@ -1,6 +1,6 @@
 import { View, Text } from "react-native";
 import Svg, { Path, Defs, LinearGradient, Stop, Line } from "react-native-svg";
-import { colors, typography } from "@/lib/theme";
+import { useTheme } from "@/lib/ThemeContext";
 import type { NetWorthPoint } from "@worthlane/types";
 
 interface NetWorthChartProps {
@@ -16,6 +16,7 @@ function formatShort(value: number): string {
 }
 
 export function NetWorthChart({ data, width, height }: NetWorthChartProps) {
+  const { colors, typography } = useTheme();
   if (data.length < 2) {
     return (
       <View style={{ height, justifyContent: "center", alignItems: "center" }}>

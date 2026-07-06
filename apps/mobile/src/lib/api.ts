@@ -1,4 +1,5 @@
 import * as SecureStore from "expo-secure-store";
+import { fetch as expoFetch } from "expo/fetch";
 
 function resolveApiUrl(): string {
   const configuredUrl = process.env.EXPO_PUBLIC_API_URL?.trim();
@@ -40,7 +41,20 @@ async function getAccessToken(): Promise<string | null> {
   return SecureStore.getItemAsync("accessToken");
 }
 
-async function refreshTokens(): Promise<string | null> {
+// Single-flight: concurrent 401s share one refresh instead of racing each other
+// (the second refresh would rotate tokens out from under the first retry).
+let refreshInFlight: Promise<string | null> | null = null;
+
+function refreshTokens(): Promise<string | null> {
+  if (!refreshInFlight) {
+    refreshInFlight = doRefreshTokens().finally(() => {
+      refreshInFlight = null;
+    });
+  }
+  return refreshInFlight;
+}
+
+async function doRefreshTokens(): Promise<string | null> {
   const refreshToken = await SecureStore.getItemAsync("refreshToken");
   if (!refreshToken) return null;
 
@@ -79,11 +93,16 @@ export async function apiRequest<T>(
   // Auto-refresh on 401
   if (res.status === 401) {
     token = await refreshTokens();
-    if (!token) throw new Error("Session expired");
+    if (!token) throw new ApiError("Session expired", 401);
     res = await makeRequest(token);
   }
 
-  const json = await res.json();
+  let json: { data?: T; error?: { message?: string; code?: string } };
+  try {
+    json = await res.json();
+  } catch {
+    throw new ApiError("Request failed", res.status);
+  }
   if (!res.ok) {
     throw new ApiError(
       json.error?.message ?? "Request failed",
@@ -94,6 +113,86 @@ export async function apiRequest<T>(
   return json.data as T;
 }
 
+interface StreamFrame {
+  token?: string;
+  done?: boolean;
+  error?: string;
+}
+
+// Consumes a server-sent-event stream (data: {...}\n\n frames) and yields
+// text tokens. Uses expo/fetch because React Native's built-in fetch does
+// not expose streamed response bodies.
+async function* apiStream(path: string, body?: unknown): AsyncGenerator<string> {
+  let token = await getAccessToken();
+
+  const makeRequest = (t: string | null) =>
+    expoFetch(`${API_URL}${path}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "text/event-stream",
+        ...(t ? { Authorization: `Bearer ${t}` } : {}),
+      },
+      body: JSON.stringify(body ?? {}),
+    });
+
+  let res = await makeRequest(token);
+
+  if (res.status === 401) {
+    token = await refreshTokens();
+    if (!token) throw new ApiError("Session expired", 401);
+    res = await makeRequest(token);
+  }
+
+  if (!res.ok) {
+    let message = "Request failed";
+    let code: string | undefined;
+    try {
+      const json = await res.json();
+      message = json.error?.message ?? message;
+      code = json.error?.code;
+    } catch {
+      // non-JSON error body
+    }
+    throw new ApiError(message, res.status, code);
+  }
+
+  if (!res.body) throw new ApiError("Streaming not supported", 500);
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      let separatorIndex: number;
+      while ((separatorIndex = buffer.indexOf("\n\n")) !== -1) {
+        const frame = buffer.slice(0, separatorIndex);
+        buffer = buffer.slice(separatorIndex + 2);
+
+        for (const line of frame.split("\n")) {
+          if (!line.startsWith("data: ")) continue;
+          let payload: StreamFrame;
+          try {
+            payload = JSON.parse(line.slice(6));
+          } catch {
+            continue;
+          }
+          if (payload.error) throw new ApiError(payload.error, 502);
+          if (payload.done) return;
+          if (payload.token) yield payload.token;
+        }
+      }
+    }
+  } finally {
+    reader.cancel().catch(() => {});
+  }
+}
+
 export const api = {
   get: <T>(path: string) => apiRequest<T>(path, { method: "GET" }),
   post: <T>(path: string, body?: unknown) =>
@@ -102,4 +201,5 @@ export const api = {
     apiRequest<T>(path, { method: "PATCH", ...(body !== undefined ? { body: JSON.stringify(body) } : {}) }),
   delete: <T>(path: string, body?: unknown) =>
     apiRequest<T>(path, { method: "DELETE", ...(body !== undefined ? { body: JSON.stringify(body) } : {}) }),
+  stream: apiStream,
 };

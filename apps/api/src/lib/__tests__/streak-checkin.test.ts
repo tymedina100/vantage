@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const { mockPrisma } = vi.hoisted(() => {
   const mockPrisma = {
-    streak: { upsert: vi.fn(), update: vi.fn() },
+    streak: { upsert: vi.fn(), update: vi.fn(), updateMany: vi.fn(), findUniqueOrThrow: vi.fn() },
     budget: { findMany: vi.fn() },
     transaction: { aggregate: vi.fn(), count: vi.fn() },
   };
@@ -52,6 +52,8 @@ function daysAgo(n: number): Date {
 beforeEach(() => {
   vi.clearAllMocks();
   mockPrisma.streak.update.mockResolvedValue({});
+  mockPrisma.streak.updateMany.mockResolvedValue({ count: 1 });
+  mockPrisma.streak.findUniqueOrThrow.mockResolvedValue(makeStreak());
 });
 
 // ---------------------------------------------------------------------------
@@ -66,7 +68,7 @@ describe("evaluateDailyCheckin", () => {
     const result = await evaluateDailyCheckin(USER_ID, now);
 
     expect(mockPrisma.streak.upsert).toHaveBeenCalledOnce();
-    expect(mockPrisma.streak.update).not.toHaveBeenCalled();
+    expect(mockPrisma.streak.updateMany).not.toHaveBeenCalled();
     expect(result.streak.currentCount).toBe(1);
     expect(result.alreadyCheckedIn).toBe(true);
   });
@@ -79,7 +81,7 @@ describe("evaluateDailyCheckin", () => {
 
     const result = await evaluateDailyCheckin(USER_ID, now);
 
-    expect(mockPrisma.streak.update).not.toHaveBeenCalled();
+    expect(mockPrisma.streak.updateMany).not.toHaveBeenCalled();
     expect(result.alreadyCheckedIn).toBe(true);
     expect(result.streak.currentCount).toBe(7);
   });
@@ -89,15 +91,16 @@ describe("evaluateDailyCheckin", () => {
     mockPrisma.streak.upsert.mockResolvedValue(
       makeStreak({ currentCount: 5, longestCount: 10, lastActivityAt: daysAgo(1) })
     );
-    mockPrisma.streak.update.mockResolvedValue(
+    mockPrisma.streak.findUniqueOrThrow.mockResolvedValue(
       makeStreak({ currentCount: 6, longestCount: 10, lastActivityAt: now })
     );
 
     const result = await evaluateDailyCheckin(USER_ID, now);
 
-    expect(mockPrisma.streak.update).toHaveBeenCalledOnce();
-    const data = mockPrisma.streak.update.mock.calls[0][0].data;
+    expect(mockPrisma.streak.updateMany).toHaveBeenCalledOnce();
+    const data = mockPrisma.streak.updateMany.mock.calls[0][0].data;
     expect(data.currentCount).toBe(6);
+    expect(result.streak.currentCount).toBe(6);
     expect(result.alreadyCheckedIn).toBe(false);
   });
 
@@ -109,8 +112,25 @@ describe("evaluateDailyCheckin", () => {
 
     await evaluateDailyCheckin(USER_ID, now);
 
-    const data = mockPrisma.streak.update.mock.calls[0][0].data;
+    const data = mockPrisma.streak.updateMany.mock.calls[0][0].data;
     expect(data.currentCount).toBe(1);
+  });
+
+  it("concurrent duplicate check-in loses the date guard and reports alreadyCheckedIn", async () => {
+    const now = new Date();
+    mockPrisma.streak.upsert.mockResolvedValue(
+      makeStreak({ currentCount: 5, longestCount: 10, lastActivityAt: daysAgo(1) })
+    );
+    // Another request won the race: the guarded update matched no rows.
+    mockPrisma.streak.updateMany.mockResolvedValue({ count: 0 });
+    mockPrisma.streak.findUniqueOrThrow.mockResolvedValue(
+      makeStreak({ currentCount: 6, longestCount: 10, lastActivityAt: now })
+    );
+
+    const result = await evaluateDailyCheckin(USER_ID, now);
+
+    expect(result.alreadyCheckedIn).toBe(true);
+    expect(result.streak.currentCount).toBe(6);
   });
 });
 
@@ -135,8 +155,8 @@ describe("evaluateWeeklyOnBudget", () => {
 
     await evaluateWeeklyOnBudget(USER_ID, now);
 
-    expect(mockPrisma.streak.update).toHaveBeenCalledOnce();
-    const data = mockPrisma.streak.update.mock.calls[0][0].data;
+    expect(mockPrisma.streak.updateMany).toHaveBeenCalledOnce();
+    const data = mockPrisma.streak.updateMany.mock.calls[0][0].data;
     expect(data.currentCount).toBe(3);
   });
 
@@ -166,6 +186,7 @@ describe("evaluateWeeklyOnBudget", () => {
     await evaluateWeeklyOnBudget(USER_ID, now);
 
     expect(mockPrisma.streak.update).not.toHaveBeenCalled();
+    expect(mockPrisma.streak.updateMany).not.toHaveBeenCalled();
   });
 
   it("no budgets: counts as on budget and extends streak", async () => {
@@ -177,8 +198,8 @@ describe("evaluateWeeklyOnBudget", () => {
 
     await evaluateWeeklyOnBudget(USER_ID, now);
 
-    expect(mockPrisma.streak.update).toHaveBeenCalledOnce();
-    const data = mockPrisma.streak.update.mock.calls[0][0].data;
+    expect(mockPrisma.streak.updateMany).toHaveBeenCalledOnce();
+    const data = mockPrisma.streak.updateMany.mock.calls[0][0].data;
     expect(data.currentCount).toBe(2);
   });
 });
@@ -222,6 +243,7 @@ describe("evaluateNoImpulsePurchases", () => {
     await evaluateNoImpulsePurchases(USER_ID, now);
 
     expect(mockPrisma.streak.update).not.toHaveBeenCalled();
+    expect(mockPrisma.streak.updateMany).not.toHaveBeenCalled();
   });
 
   it("continuing from yesterday with no impulse: increments streak", async () => {
@@ -233,7 +255,7 @@ describe("evaluateNoImpulsePurchases", () => {
 
     await evaluateNoImpulsePurchases(USER_ID, now);
 
-    const data = mockPrisma.streak.update.mock.calls[0][0].data;
+    const data = mockPrisma.streak.updateMany.mock.calls[0][0].data;
     expect(data.currentCount).toBe(8);
   });
 });

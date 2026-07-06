@@ -6,7 +6,7 @@ export const metadata: Metadata = {
   description: "Get help with Worthlane. Find answers to common questions or contact our support team.",
 };
 
-const CONTACT_EMAIL = "support@getvantage.app";
+const CONTACT_EMAIL = "support@worthlane.app";
 const TESTFLIGHT_URL = "https://testflight.apple.com/join/placeholder";
 
 const faqs = [
@@ -24,11 +24,11 @@ const faqs = [
   },
   {
     q: "How do I reset my password?",
-    a: "On the login screen, tap 'Forgot password?' and enter your email address. You'll receive a reset link within a few minutes. Check your spam folder if it doesn't arrive.",
+    a: "On the login screen, tap 'Forgot password?' and enter your email address. You'll receive an email with a reset code within a few minutes. Check your spam folder if it doesn't arrive.",
   },
   {
     q: "How do I delete my account?",
-    a: "To delete your account and all associated data, email us at support@getvantage.app with the subject line 'Delete my account' from your registered email address. We'll process your request within 30 days.",
+    a: "Open the Profile tab and tap 'Delete account' at the bottom. This immediately and permanently deletes your account and all associated data. You can also email us at support@worthlane.app if you need help.",
   },
   {
     q: "Why aren't my transactions updating?",
@@ -48,7 +48,7 @@ const faqs = [
   },
   {
     q: "The app isn't working — how do I get help?",
-    a: "Email us at support@getvantage.app with a description of the issue, your device model, and iOS version. Screenshots are always helpful. We typically respond within 24 hours.",
+    a: "Email us at support@worthlane.app with a description of the issue, your device model, and iOS version. Screenshots are always helpful. We typically respond within 24 hours.",
   },
 ];
 

@@ -10,9 +10,12 @@ import {
 } from "react-native";
 import { router } from "expo-router";
 import { apiRequest } from "@/lib/api";
-import { colors, spacing, radius, typography } from "@/lib/theme";
+import { spacing, radius } from "@/lib/theme";
+import { useTheme, useThemedStyles, type Theme } from "@/lib/ThemeContext";
 
 export default function ResetPasswordScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [token, setToken] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -20,6 +23,10 @@ export default function ResetPasswordScreen() {
 
   const handleReset = async () => {
     if (!token || !newPassword) return;
+    if (newPassword.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -85,7 +92,8 @@ export default function ResetPasswordScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors, typography }: Theme) =>
+  StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.bg,

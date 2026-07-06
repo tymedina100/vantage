@@ -14,7 +14,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { api } from "@/lib/api";
-import { colors, spacing, radius, typography } from "@/lib/theme";
+import { spacing, radius } from "@/lib/theme";
+import { useTheme, useThemedStyles, type Theme } from "@/lib/ThemeContext";
 import { useSubscription } from "@/hooks/useSubscription";
 
 interface Message {
@@ -32,6 +33,8 @@ const SUGGESTED_PROMPTS = [
 ];
 
 export default function AssistantScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const { isPremium, isLoading: subLoading } = useSubscription();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -237,7 +240,8 @@ export default function AssistantScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors, typography }: Theme) =>
+  StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
 
   header: {

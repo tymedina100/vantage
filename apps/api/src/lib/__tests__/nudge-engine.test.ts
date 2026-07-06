@@ -9,6 +9,7 @@ const { mockPrisma } = vi.hoisted(() => {
     goal: { findMany: vi.fn() },
     transaction: { aggregate: vi.fn(), findFirst: vi.fn() },
     nudge: { findFirst: vi.fn(), create: vi.fn() },
+    recurringTransaction: { findMany: vi.fn() },
   };
   return { mockPrisma };
 });
@@ -21,6 +22,7 @@ vi.mock("@worthlane/db", () => ({
     GOAL_MILESTONE: "GOAL_MILESTONE",
     WEEKLY_SUMMARY: "WEEKLY_SUMMARY",
     IMPULSE_FLAG: "IMPULSE_FLAG",
+    BILL_DUE: "BILL_DUE",
   },
 }));
 
@@ -56,6 +58,7 @@ beforeEach(() => {
   mockPrisma.nudge.create.mockResolvedValue({});
   mockPrisma.transaction.aggregate.mockResolvedValue(aggResult(0));
   mockPrisma.transaction.findFirst.mockResolvedValue(null);
+  mockPrisma.recurringTransaction.findMany.mockResolvedValue([]);
 });
 
 describe("BUDGET_WARNING nudge", () => {
@@ -250,7 +253,7 @@ describe("IMPULSE_FLAG nudge", () => {
 });
 
 describe("nudge deduplication", () => {
-  it("skips creating a nudge when one already exists for today", async () => {
+  it("swallows the unique-constraint error when a nudge already exists for today", async () => {
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
     mockPrisma.budget.findMany.mockResolvedValue([]);
@@ -258,10 +261,28 @@ describe("nudge deduplication", () => {
     mockPrisma.goal.findMany.mockResolvedValue([]);
     mockPrisma.transaction.aggregate.mockResolvedValue(aggResult(0));
 
-    mockPrisma.nudge.findFirst.mockResolvedValue({ id: "existing-nudge" });
+    // Dedup is enforced by the (userId, type, day) unique constraint:
+    // the duplicate create rejects with P2002 and must not throw out.
+    mockPrisma.nudge.create.mockRejectedValue(
+      Object.assign(new Error("Unique constraint failed"), { code: "P2002" })
+    );
 
-    await generateNudgesForUser(USER_ID);
+    await expect(generateNudgesForUser(USER_ID)).resolves.toBeUndefined();
+    expect(mockPrisma.nudge.create).toHaveBeenCalledOnce();
+    // The push for the duplicate nudge must not be sent.
+    expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
+  });
 
-    expect(mockPrisma.nudge.create).not.toHaveBeenCalled();
+  it("rethrows non-duplicate errors from nudge creation", async () => {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    mockPrisma.budget.findMany.mockResolvedValue([]);
+    mockPrisma.streak.findMany.mockResolvedValue([makeStreak(5, yesterday)]);
+    mockPrisma.goal.findMany.mockResolvedValue([]);
+    mockPrisma.transaction.aggregate.mockResolvedValue(aggResult(0));
+
+    mockPrisma.nudge.create.mockRejectedValue(new Error("db down"));
+
+    await expect(generateNudgesForUser(USER_ID)).rejects.toThrow("db down");
   });
 });

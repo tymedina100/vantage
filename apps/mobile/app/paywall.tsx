@@ -14,7 +14,8 @@ import { Ionicons } from "@expo/vector-icons";
 import Purchases, { PurchasesPackage } from "react-native-purchases";
 import { useEffect } from "react";
 import { PREMIUM_ENTITLEMENT, PRODUCT_IDS } from "@/hooks/useSubscription";
-import { colors, radius, spacing, typography } from "@/lib/theme";
+import { spacing, radius } from "@/lib/theme";
+import { useTheme, useThemedStyles, type Theme } from "@/lib/ThemeContext";
 
 const FEATURES = [
   { icon: "sparkles", label: "Worthlane AI", description: "Ask anything about your finances, anytime" },
@@ -24,6 +25,8 @@ const FEATURES = [
 ];
 
 export default function PaywallScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [packages, setPackages] = useState<PurchasesPackage[]>([]);
   const [selected, setSelected] = useState<"monthly" | "annual">("annual");
   const [purchasing, setPurchasing] = useState(false);
@@ -186,7 +189,8 @@ export default function PaywallScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors, typography }: Theme) =>
+  StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
 
   closeButton: {

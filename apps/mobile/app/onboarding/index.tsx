@@ -12,9 +12,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useQueryClient } from "@tanstack/react-query";
 import { openLink, LinkSuccess, LinkExit } from "react-native-plaid-link-sdk";
 import { api } from "@/lib/api";
-import { colors, spacing, radius, typography } from "@/lib/theme";
+import { PLAID_ENABLED } from "@/lib/flags";
+import { spacing, radius } from "@/lib/theme";
+import { useTheme, useThemedStyles, type Theme } from "@/lib/ThemeContext";
 
 function ProgressDots({ current, total }: { current: number; total: number }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.dots}>
       {Array.from({ length: total }).map((_, i) => (
@@ -28,6 +31,7 @@ function ProgressDots({ current, total }: { current: number; total: number }) {
 }
 
 export default function OnboardingWelcome() {
+  const styles = useThemedStyles(createStyles);
   const [connecting, setConnecting] = useState(false);
   const qc = useQueryClient();
 
@@ -36,9 +40,12 @@ export default function OnboardingWelcome() {
   const handleConnectBank = async () => {
     setConnecting(true);
     try {
-      const { linkToken: token } = await api.post<{ linkToken: string }>("/plaid/link-token", {});
+      const { linkToken: token } = await api.post<{ linkToken: string }>("/plaid/link-token", {
+        platform: Platform.OS === "ios" ? "ios" : "android",
+        mode: "create",
+      });
       openLink({
-        tokenConfig: { token, noLoadingState: false, redirectUri: "vantage://plaid-oauth" },
+        tokenConfig: { token, noLoadingState: false },
         onSuccess: async (success: LinkSuccess) => {
           try {
             await api.post("/plaid/exchange", {
@@ -61,7 +68,7 @@ export default function OnboardingWelcome() {
         onExit: (_exit: LinkExit) => {
           setConnecting(false);
         },
-      } as any);
+      });
     } catch {
       Alert.alert("Error", "Could not start bank connection. You can connect from Profile later.");
       setConnecting(false);
@@ -74,39 +81,50 @@ export default function OnboardingWelcome() {
         <ProgressDots current={0} total={3} />
 
         <View style={styles.hero}>
-          <Text style={styles.wordmark}>VANTAGE</Text>
+          <Text style={styles.wordmark}>WORTHLANE</Text>
           <Text style={styles.heading}>Let's build your{"\n"}financial picture.</Text>
           <Text style={styles.subtitle}>
-            Connect your bank to automatically track spending, budgets, and progress toward your goals.
+            {PLAID_ENABLED
+              ? "Connect your bank to automatically track spending, budgets, and progress toward your goals."
+              : "Track spending, budgets, and progress toward your goals - starting with a quick setup."}
           </Text>
         </View>
 
         <View style={styles.actions}>
-          <TouchableOpacity
-            style={[styles.primaryButton, connecting && styles.buttonDisabled]}
-            onPress={handleConnectBank}
-            disabled={connecting}
-          >
-            <Text style={styles.primaryButtonText}>
-              {connecting ? "Opening…" : "Connect a Bank Account"}
-            </Text>
-          </TouchableOpacity>
+          {PLAID_ENABLED ? (
+            <>
+              <TouchableOpacity
+                style={[styles.primaryButton, connecting && styles.buttonDisabled]}
+                onPress={handleConnectBank}
+                disabled={connecting}
+              >
+                <Text style={styles.primaryButtonText}>
+                  {connecting ? "Opening…" : "Connect a Bank Account"}
+                </Text>
+              </TouchableOpacity>
 
-          <TouchableOpacity style={styles.skipButton} onPress={skip}>
-            <Text style={styles.skipText}>Do this later →</Text>
-          </TouchableOpacity>
+              <TouchableOpacity style={styles.skipButton} onPress={skip}>
+                <Text style={styles.skipText}>Do this later →</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <TouchableOpacity style={styles.primaryButton} onPress={skip}>
+              <Text style={styles.primaryButtonText}>Get Started</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors, typography }: Theme) =>
+  StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   inner: { flex: 1, padding: spacing.xl, justifyContent: "space-between" },
   dots: { flexDirection: "row", gap: spacing.xs, paddingTop: spacing.sm },
   dot: { height: 4, borderRadius: radius.full },
-  dotActive: { width: 24, backgroundColor: colors.primary },
+  dotActive: { width: 8, backgroundColor: colors.primary },
   dotCurrent: { width: 24, backgroundColor: colors.primary },
   dotInactive: { width: 8, backgroundColor: colors.border },
   hero: { flex: 1, justifyContent: "center" },

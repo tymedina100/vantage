@@ -10,9 +10,12 @@ import {
 } from "react-native";
 import { router } from "expo-router";
 import { apiRequest } from "@/lib/api";
-import { colors, spacing, radius, typography } from "@/lib/theme";
+import { spacing, radius } from "@/lib/theme";
+import { useTheme, useThemedStyles, type Theme } from "@/lib/ThemeContext";
 
 export default function ForgotPasswordScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
@@ -96,7 +99,8 @@ export default function ForgotPasswordScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors, typography }: Theme) =>
+  StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.bg,

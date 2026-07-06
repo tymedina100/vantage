@@ -3,20 +3,21 @@ import { z } from "zod";
 import { AccountSource, prisma } from "@worthlane/db";
 import { getAuthUser } from "@/lib/auth";
 import { ok, err, unauthorized, notFound } from "@/lib/response";
+import { moneyAmount } from "@/lib/validation";
 
 const manualUpdateSchema = z.object({
   accountId: z.string().optional(),
-  amount: z.number().optional(),
+  amount: moneyAmount.optional(),
   date: z.string().datetime().optional(),
-  categoryId: z.string().optional(),
-  note: z.string().optional(),
+  categoryId: z.string().nullable().optional(),
+  note: z.string().nullable().optional(),
   isImpulse: z.boolean().optional(),
-  merchantName: z.string().optional(),
+  merchantName: z.string().nullable().optional(),
 });
 
 const importedUpdateSchema = z.object({
-  categoryId: z.string().optional(),
-  note: z.string().optional(),
+  categoryId: z.string().nullable().optional(),
+  note: z.string().nullable().optional(),
   isImpulse: z.boolean().optional(),
 });
 

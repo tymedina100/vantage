@@ -53,7 +53,7 @@ export interface PlaidItemSummary {
   accountCount: number;
 }
 
-export interface AccountSummary {
+export interface AccountDetail {
   id: string;
   name: string;
   institutionName: string | null;
@@ -68,7 +68,7 @@ export interface AccountSummary {
 }
 
 export interface AccountsResponse {
-  accounts: AccountSummary[];
+  accounts: AccountDetail[];
   plaidItems: PlaidItemSummary[];
 }
 
@@ -125,6 +125,25 @@ export interface NetWorthPoint {
   value: number;
 }
 
+// GET /api/accounts/net-worth
+export interface NetWorthResponse {
+  current: number;
+  change: number;
+  changePercent: number;
+  range: number;
+  history: NetWorthPoint[];
+  breakdown: { assets: number; liabilities: number };
+}
+
+// Simplified account shape used only by the dashboard summary
+export interface AccountSummary {
+  id: string;
+  name: string;
+  type: "CHECKING" | "SAVINGS" | "CREDIT" | "INVESTMENT" | "LOAN" | "OTHER";
+  currentBalance: number;
+  institutionName: string | null;
+}
+
 // Dashboard summary
 export interface DashboardSummary {
   netWorth: number;
@@ -153,6 +172,57 @@ export interface PlaidLinkTokenRequest {
 export interface PlaidExchangeRequest {
   publicToken: string;
   institutionName: string;
+}
+
+// Recurring transactions (subscriptions & bills)
+export type RecurringFrequency = "WEEKLY" | "BIWEEKLY" | "MONTHLY" | "QUARTERLY" | "YEARLY";
+
+export interface RecurringItem {
+  id: string;
+  displayName: string;
+  categoryId: string | null;
+  accountId: string | null;
+  averageAmount: number;
+  frequency: RecurringFrequency;
+  lastSeenDate: string; // YYYY-MM-DD
+  nextDueDate: string; // YYYY-MM-DD
+  occurrenceCount: number;
+  isMuted: boolean;
+}
+
+export interface RecurringResponse {
+  items: RecurringItem[];
+  monthlyTotal: number;
+}
+
+// Reports
+export interface CashFlowMonth {
+  month: string; // YYYY-MM
+  income: number;
+  spending: number;
+  net: number;
+}
+
+export interface CashFlowResponse {
+  months: CashFlowMonth[];
+}
+
+export interface SpendingCategoryBreakdown {
+  categoryId: string | null;
+  name: string;
+  icon: string;
+  color: string;
+  amount: number;
+  percent: number;
+  previousMonthAmount: number;
+}
+
+export interface SpendingReport {
+  month: string; // YYYY-MM
+  totalSpending: number;
+  income: number;
+  savingsRate: number | null;
+  breakdown: SpendingCategoryBreakdown[];
 }
 
 // Nudge

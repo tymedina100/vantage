@@ -7,7 +7,7 @@ export const metadata: Metadata = {
 };
 
 const EFFECTIVE_DATE = "March 18, 2026";
-const CONTACT_EMAIL = "support@getvantage.app";
+const CONTACT_EMAIL = "support@worthlane.app";
 
 export default function PrivacyPage() {
   return (

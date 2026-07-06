@@ -15,7 +15,10 @@ import {
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "@/lib/api";
-import { colors, spacing, radius, typography } from "@/lib/theme";
+import { spacing, radius } from "@/lib/theme";
+import { useTheme, useThemedStyles, type Theme } from "@/lib/ThemeContext";
+import { EmptyState } from "@/components/EmptyState";
+import { Ionicons } from "@expo/vector-icons";
 import type { GoalWithProgress } from "@worthlane/types";
 
 function formatCurrency(amount: number): string {
@@ -35,14 +38,22 @@ const GOAL_TYPES = [
 
 const PRESET_ICONS = ["🎯", "🏠", "🚗", "✈️", "📚", "💪", "🏖️", "💻", "🎓", "💍"];
 
-const GOAL_TYPE_COLORS: Record<string, string> = {
-  SAVINGS: colors.success,
-  DEBT_PAYOFF: colors.danger,
-  PURCHASE: colors.primary,
-  EMERGENCY_FUND: colors.warning,
-};
+function goalTypeColor(type: string, colors: Theme["colors"]): string {
+  switch (type) {
+    case "SAVINGS":
+      return colors.success;
+    case "DEBT_PAYOFF":
+      return colors.danger;
+    case "EMERGENCY_FUND":
+      return colors.warning;
+    case "PURCHASE":
+    default:
+      return colors.primary;
+  }
+}
 
 function ProgressRing({ percent, color, size = 80 }: { percent: number; color: string; size?: number }) {
+  const { colors } = useTheme();
   const strokeWidth = 8;
   return (
     <View style={{ width: size, height: size, borderRadius: size / 2, borderWidth: strokeWidth, borderColor: colors.surfaceAlt, justifyContent: "center", alignItems: "center", position: "relative" }}>
@@ -53,6 +64,8 @@ function ProgressRing({ percent, color, size = 80 }: { percent: number; color: s
 }
 
 function CreateGoalModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [name, setName] = useState("");
   const [targetAmount, setTargetAmount] = useState("");
   const [type, setType] = useState<"SAVINGS" | "DEBT_PAYOFF" | "PURCHASE" | "EMERGENCY_FUND">("SAVINGS");
@@ -133,6 +146,8 @@ function CreateGoalModal({ visible, onClose }: { visible: boolean; onClose: () =
 }
 
 function ContributionModal({ goal, visible, onClose }: { goal: GoalWithProgress; visible: boolean; onClose: () => void }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
   const queryClient = useQueryClient();
@@ -180,6 +195,8 @@ function ContributionModal({ goal, visible, onClose }: { goal: GoalWithProgress;
 }
 
 function EditGoalModal({ goal, visible, onClose }: { goal: GoalWithProgress | null; visible: boolean; onClose: () => void }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [name, setName] = useState(goal?.name ?? "");
   const [targetAmount, setTargetAmount] = useState(goal?.targetAmount.toString() ?? "");
   const [icon, setIcon] = useState(goal?.icon ?? "🎯");
@@ -262,8 +279,10 @@ function EditGoalModal({ goal, visible, onClose }: { goal: GoalWithProgress | nu
 }
 
 function GoalCard({ goal, onEdit, onDelete }: { goal: GoalWithProgress; onEdit: () => void; onDelete: () => void }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [contributionVisible, setContributionVisible] = useState(false);
-  const color = GOAL_TYPE_COLORS[goal.type] ?? colors.primary;
+  const color = goalTypeColor(goal.type, colors);
   const remaining = goal.targetAmount - goal.currentAmount;
 
   return (
@@ -277,11 +296,23 @@ function GoalCard({ goal, onEdit, onDelete }: { goal: GoalWithProgress; onEdit: 
             <Text style={styles.goalType}>{goal.type.replace("_", " ")}</Text>
           </View>
           <View style={styles.goalActions}>
-            <TouchableOpacity onPress={onEdit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Text style={{ fontSize: 16 }}>✏️</Text>
+            <TouchableOpacity
+              onPress={onEdit}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={`Edit ${goal.name} goal`}
+            >
+              <Ionicons name="pencil" size={16} color={colors.textMuted} />
             </TouchableOpacity>
-            <TouchableOpacity onPress={onDelete} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Text style={{ fontSize: 16 }}>🗑️</Text>
+            <TouchableOpacity
+              onPress={onDelete}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={`Delete ${goal.name} goal`}
+            >
+              <Ionicons name="trash-outline" size={16} color={colors.textMuted} />
             </TouchableOpacity>
           </View>
         </View>
@@ -340,6 +371,8 @@ function GoalCard({ goal, onEdit, onDelete }: { goal: GoalWithProgress; onEdit: 
 }
 
 export default function GoalsScreen() {
+  const { colors, typography } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [createVisible, setCreateVisible] = useState(false);
   const [editGoal, setEditGoal] = useState<GoalWithProgress | null>(null);
   const queryClient = useQueryClient();
@@ -394,16 +427,13 @@ export default function GoalsScreen() {
         ))}
 
         {goals?.length === 0 && (
-          <View style={styles.emptyState}>
-            <Text style={{ fontSize: 48 }}>🎯</Text>
-            <Text style={typography.h3}>No goals yet</Text>
-            <Text style={[typography.bodySmall, { textAlign: "center" }]}>
-              Create your first goal — saving for something concrete is the most powerful motivator.
-            </Text>
-            <TouchableOpacity style={styles.submitButton} onPress={() => setCreateVisible(true)}>
-              <Text style={styles.submitButtonText}>Create a Goal</Text>
-            </TouchableOpacity>
-          </View>
+          <EmptyState
+            icon="flag"
+            title="No goals yet"
+            body="Create your first goal — saving for something concrete is the most powerful motivator."
+            actionLabel="Create a Goal"
+            onAction={() => setCreateVisible(true)}
+          />
         )}
       </ScrollView>
 
@@ -413,7 +443,8 @@ export default function GoalsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors, typography }: Theme) =>
+  StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.md, paddingBottom: spacing.xxl },
   titleRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: spacing.lg },

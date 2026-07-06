@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@worthlane/db";
 import { hashPassword } from "@/lib/auth";
+import { checkRateLimit, ipKey } from "@/lib/rate-limit";
 import { ok, err } from "@/lib/response";
 
 const schema = z.object({
@@ -10,11 +11,16 @@ const schema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  // Codes are short enough to guess without a cap on attempts.
+  const limited = checkRateLimit(ipKey(req, "reset-password"), 5, 15 * 60 * 1000);
+  if (limited) return limited;
+
   const body = await req.json().catch(() => null);
   const parsed = schema.safeParse(body);
   if (!parsed.success) return err(parsed.error.errors[0]?.message ?? "Invalid request body");
 
-  const { token, newPassword } = parsed.data;
+  const { newPassword } = parsed.data;
+  const token = parsed.data.token.trim().toUpperCase();
 
   const resetToken = await prisma.passwordResetToken.findUnique({
     where: { token },

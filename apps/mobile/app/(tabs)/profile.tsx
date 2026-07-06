@@ -29,7 +29,9 @@ import {
   formatRelativeSyncTime,
   getPlaidStatusTone,
 } from "@/lib/finance";
-import { colors, spacing, radius, typography } from "@/lib/theme";
+import { PLAID_ENABLED } from "@/lib/flags";
+import { spacing, radius } from "@/lib/theme";
+import { useTheme, useThemedStyles, type Theme } from "@/lib/ThemeContext";
 
 type ManualAccountDraft = {
   id?: string;
@@ -72,6 +74,7 @@ function bankActionErrorMessage(error: unknown) {
 }
 
 function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.sectionHeader}>
       <Text style={styles.sectionTitle}>{title}</Text>
@@ -81,6 +84,8 @@ function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }
 }
 
 function StatusPill({ item }: { item: PlaidItemSummary }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const tone = getPlaidStatusTone(item.status);
   const backgroundColor =
     tone.color === "success"
@@ -119,6 +124,8 @@ function ManualAccountModal({
   onSubmit: () => void;
   onDelete: (() => void) | null;
 }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.modalBackdrop}>
@@ -192,6 +199,8 @@ function ManualAccountModal({
 }
 
 export default function ProfileScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const { email, logout, biometricEnabled, enableBiometric, disableBiometric } = useAuthStore();
   const { isPremium } = useSubscription();
   const [biometricSupported, setBiometricSupported] = useState(false);
@@ -440,6 +449,36 @@ export default function ProfileScreen() {
     ]);
   };
 
+  const deleteAccountMutation = useMutation({
+    mutationFn: () => api.delete("/auth/account"),
+  });
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      "Delete account?",
+      "This permanently deletes your account and all data - accounts, transactions, budgets, goals, and streaks. This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete forever",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteAccountMutation.mutateAsync();
+              await logout();
+              router.replace("/(auth)/login");
+            } catch (error) {
+              Alert.alert(
+                "Could not delete account",
+                error instanceof Error ? error.message : "Please try again."
+              );
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const syncingAll = syncMutation.isPending;
 
   return (
@@ -462,30 +501,39 @@ export default function ProfileScreen() {
           />
 
           <View style={styles.actionRow}>
+            {PLAID_ENABLED ? (
+              <TouchableOpacity
+                style={styles.primaryButton}
+                onPress={() => {
+                  if (!isPremium && plaidItems.length >= 1) {
+                    router.push("/paywall" as any);
+                    return;
+                  }
+                  launchPlaid("create");
+                }}
+              >
+                <Text style={styles.primaryButtonText}>Connect bank</Text>
+              </TouchableOpacity>
+            ) : null}
             <TouchableOpacity
-              style={styles.primaryButton}
-              onPress={() => {
-                if (!isPremium && plaidItems.length >= 1) {
-                  router.push("/paywall" as any);
-                  return;
-                }
-                launchPlaid("create");
-              }}
+              style={PLAID_ENABLED ? styles.secondaryButton : styles.primaryButton}
+              onPress={openCreateManualAccount}
             >
-              <Text style={styles.primaryButtonText}>Connect bank</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.secondaryButton} onPress={openCreateManualAccount}>
-              <Text style={styles.secondaryButtonText}>Add manual account</Text>
+              <Text style={PLAID_ENABLED ? styles.secondaryButtonText : styles.primaryButtonText}>
+                Add manual account
+              </Text>
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity
-            style={[styles.secondaryButton, styles.syncAllButton, syncingAll && styles.buttonDisabled]}
-            onPress={() => syncMutation.mutate(undefined)}
-            disabled={syncingAll}
-          >
-            <Text style={styles.secondaryButtonText}>{syncingAll ? "Syncing..." : "Sync every institution"}</Text>
-          </TouchableOpacity>
+          {PLAID_ENABLED || plaidItems.length > 0 ? (
+            <TouchableOpacity
+              style={[styles.secondaryButton, styles.syncAllButton, syncingAll && styles.buttonDisabled]}
+              onPress={() => syncMutation.mutate(undefined)}
+              disabled={syncingAll}
+            >
+              <Text style={styles.secondaryButtonText}>{syncingAll ? "Syncing..." : "Sync every institution"}</Text>
+            </TouchableOpacity>
+          ) : null}
 
           {accountsQuery.isLoading ? (
             <View style={styles.loadingCard}>
@@ -510,7 +558,9 @@ export default function ProfileScreen() {
             <View style={styles.emptyCard}>
               <Text style={styles.emptyTitle}>Nothing linked yet</Text>
               <Text style={styles.emptyBody}>
-                Connect a bank for automatic transactions, or add a manual account so budgets and goals still work if Plaid is unavailable.
+                {PLAID_ENABLED
+                  ? "Connect a bank for automatic transactions, or add a manual account so budgets and goals still work if Plaid is unavailable."
+                  : "Add a manual account to start tracking balances, budgets, and goals. Automatic bank sync is coming soon."}
               </Text>
             </View>
           ) : null}
@@ -588,6 +638,66 @@ export default function ProfileScreen() {
           ) : null}
         </View>
 
+        <View style={styles.section}>
+          <SectionHeader title="Preferences" />
+          <TouchableOpacity
+            style={[styles.card, { marginBottom: spacing.sm }]}
+            onPress={() => router.push("/accounts")}
+            accessibilityRole="button"
+            accessibilityLabel="View net worth and accounts"
+          >
+            <View style={styles.settingRow}>
+              <Text style={styles.settingLabel}>Net worth & accounts</Text>
+              <Text style={styles.accountEditHint}>›</Text>
+            </View>
+            <Text style={styles.settingDescription}>
+              See your net worth trend and every account in one place.
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.card, { marginBottom: spacing.sm }]}
+            onPress={() => router.push("/reports")}
+            accessibilityRole="button"
+            accessibilityLabel="View spending reports and cash flow"
+          >
+            <View style={styles.settingRow}>
+              <Text style={styles.settingLabel}>Reports & cash flow</Text>
+              <Text style={styles.accountEditHint}>›</Text>
+            </View>
+            <Text style={styles.settingDescription}>
+              Income vs. spending trends and where your money goes by category.
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.card, { marginBottom: spacing.sm }]}
+            onPress={() => router.push("/recurring")}
+            accessibilityRole="button"
+            accessibilityLabel="View recurring bills and subscriptions"
+          >
+            <View style={styles.settingRow}>
+              <Text style={styles.settingLabel}>Recurring & bills</Text>
+              <Text style={styles.accountEditHint}>›</Text>
+            </View>
+            <Text style={styles.settingDescription}>
+              Subscriptions and bills detected from your transactions, with due dates.
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.card}
+            onPress={() => router.push("/categories")}
+            accessibilityRole="button"
+            accessibilityLabel="Manage categories"
+          >
+            <View style={styles.settingRow}>
+              <Text style={styles.settingLabel}>Manage categories</Text>
+              <Text style={styles.accountEditHint}>›</Text>
+            </View>
+            <Text style={styles.settingDescription}>
+              Create custom spending categories or edit the ones you've added.
+            </Text>
+          </TouchableOpacity>
+        </View>
+
         {biometricSupported ? (
           <View style={styles.section}>
             <SectionHeader title="Security" />
@@ -614,6 +724,17 @@ export default function ProfileScreen() {
           <TouchableOpacity style={styles.dangerButton} onPress={handleLogout}>
             <Text style={styles.dangerButtonText}>Sign Out</Text>
           </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.deleteAccountButton}
+            onPress={handleDeleteAccount}
+            disabled={deleteAccountMutation.isPending}
+            accessibilityRole="button"
+            accessibilityLabel="Permanently delete account"
+          >
+            <Text style={styles.deleteAccountText}>
+              {deleteAccountMutation.isPending ? "Deleting..." : "Delete account"}
+            </Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
 
@@ -634,7 +755,8 @@ export default function ProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors, typography }: Theme) =>
+  StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.md, paddingBottom: spacing.xxl },
   title: { ...typography.h2, marginBottom: spacing.lg },
@@ -787,6 +909,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.danger,
   },
+  deleteAccountButton: { alignItems: "center", padding: spacing.md, marginTop: spacing.xs },
+  deleteAccountText: { color: colors.danger, fontSize: 14, fontWeight: "600" },
   dangerButtonText: { color: colors.danger, fontWeight: "700" },
   modalBackdrop: {
     flex: 1,

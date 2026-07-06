@@ -113,8 +113,17 @@ The user's current financial snapshot:
 - Top spending categories this month: ${topCatStr || "no data yet"}
 - Streaks: ${streakStr || "none active"}`;
 
+  // Drop malformed/empty history entries (an aborted stream can leave an
+  // empty assistant message, which the Anthropic API rejects).
+  const sanitizedHistory = conversationHistory.filter(
+    (m) =>
+      (m.role === "user" || m.role === "assistant") &&
+      typeof m.content === "string" &&
+      m.content.trim().length > 0
+  );
+
   const messages: Anthropic.MessageParam[] = [
-    ...conversationHistory,
+    ...sanitizedHistory,
     { role: "user", content: message.trim() },
   ];
 

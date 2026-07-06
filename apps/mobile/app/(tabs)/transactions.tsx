@@ -25,7 +25,9 @@ import {
   toIsoDateInput,
   toTransactionIsoDate,
 } from "@/lib/finance";
-import { colors, spacing, radius, typography } from "@/lib/theme";
+import { spacing, radius } from "@/lib/theme";
+import { useTheme, useThemedStyles, type Theme } from "@/lib/ThemeContext";
+import { EmptyState } from "@/components/EmptyState";
 
 type ManualTransactionDraft = {
   id?: string;
@@ -85,6 +87,8 @@ function ManualTransactionModal({
   onSubmit: () => void;
   onDelete: (() => void) | null;
 }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.modalBackdrop}>
@@ -227,6 +231,8 @@ function TransactionRow({
   onToggleImpulse: () => void;
   onOpenManualEditor: () => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   return (
     <Pressable style={styles.txRow} onPress={tx.isManual ? onOpenManualEditor : undefined}>
       <View style={[styles.txIcon, { backgroundColor: tx.category?.color ?? colors.surfaceAlt }]}>
@@ -260,6 +266,8 @@ function TransactionRow({
 }
 
 export default function TransactionsScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [search, setSearch] = useState("");
   const [modalVisible, setModalVisible] = useState(false);
   const [draft, setDraft] = useState<ManualTransactionDraft>(emptyDraft);
@@ -467,15 +475,13 @@ export default function TransactionsScreen() {
           contentContainerStyle={styles.list}
           ListEmptyComponent={
             listEmpty ? (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyTitle}>No transactions yet</Text>
-                <Text style={styles.emptyBody}>
-                  Connect a bank from Profile or add a manual account and log transactions here.
-                </Text>
-                <TouchableOpacity style={styles.emptyButton} onPress={openCreateModal}>
-                  <Text style={styles.emptyButtonText}>Add manual transaction</Text>
-                </TouchableOpacity>
-              </View>
+              <EmptyState
+                icon="receipt"
+                title="No transactions yet"
+                body="Connect a bank from Profile or add a manual account and log transactions here."
+                actionLabel="Add manual transaction"
+                onAction={openCreateModal}
+              />
             ) : null
           }
         />
@@ -500,7 +506,8 @@ export default function TransactionsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = ({ colors, typography }: Theme) =>
+  StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   header: { padding: spacing.md, paddingTop: spacing.xl, gap: spacing.md },
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },

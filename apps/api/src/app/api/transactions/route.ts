@@ -3,10 +3,11 @@ import { z } from "zod";
 import { AccountSource, prisma } from "@worthlane/db";
 import { getAuthUser } from "@/lib/auth";
 import { ok, err, unauthorized } from "@/lib/response";
+import { moneyAmount } from "@/lib/validation";
 
 const createSchema = z.object({
   accountId: z.string(),
-  amount: z.number(),
+  amount: moneyAmount,
   date: z.string().datetime(),
   merchantName: z.string().optional(),
   categoryId: z.string().optional(),

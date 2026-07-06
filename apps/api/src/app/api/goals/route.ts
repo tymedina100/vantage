@@ -5,10 +5,11 @@ import { getAuthUser } from "@/lib/auth";
 import { captureServerEvent } from "@/lib/posthog";
 import { ok, err, unauthorized } from "@/lib/response";
 import { monthsBetween } from "@/lib/dates";
+import { positiveMoneyAmount } from "@/lib/validation";
 
 const createSchema = z.object({
   name: z.string().min(1),
-  targetAmount: z.number().positive(),
+  targetAmount: positiveMoneyAmount,
   currentAmount: z.number().min(0).default(0),
   targetDate: z.string().datetime().optional(),
   type: z.nativeEnum(GoalType),

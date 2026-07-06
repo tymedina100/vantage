@@ -3,12 +3,13 @@ import { z } from "zod";
 import { AccountType, AccountSource, prisma } from "@worthlane/db";
 import { getAuthUser } from "@/lib/auth";
 import { err, ok, unauthorized } from "@/lib/response";
+import { moneyAmount } from "@/lib/validation";
 
 const createSchema = z.object({
   name: z.string().min(1),
   institutionName: z.string().optional(),
   type: z.nativeEnum(AccountType),
-  currentBalance: z.number(),
+  currentBalance: moneyAmount,
 });
 
 export async function GET(req: NextRequest) {
