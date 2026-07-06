@@ -602,6 +602,20 @@ export default function ProfileScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.card, { marginBottom: spacing.sm }]}
+            onPress={() => router.push("/reports")}
+            accessibilityRole="button"
+            accessibilityLabel="View spending reports and cash flow"
+          >
+            <View style={styles.settingRow}>
+              <Text style={styles.settingLabel}>Reports & cash flow</Text>
+              <Text style={styles.accountEditHint}>›</Text>
+            </View>
+            <Text style={styles.settingDescription}>
+              Income vs. spending trends and where your money goes by category.
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.card, { marginBottom: spacing.sm }]}
             onPress={() => router.push("/recurring")}
             accessibilityRole="button"
             accessibilityLabel="View recurring bills and subscriptions"

@@ -239,7 +239,16 @@ export default function DashboardScreen() {
       {/* Budget Overview */}
       {d?.budgets && d.budgets.length > 0 && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Budgets</Text>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Budgets</Text>
+            <TouchableOpacity
+              onPress={() => router.push("/reports")}
+              accessibilityRole="button"
+              accessibilityLabel="Open spending reports"
+            >
+              <Text style={styles.sectionLink}>Reports ›</Text>
+            </TouchableOpacity>
+          </View>
           {d.budgets.map((b) => (
             <View key={b.id} style={styles.budgetItem}>
               <View style={styles.budgetHeader}>

@@ -195,6 +195,36 @@ export interface RecurringResponse {
   monthlyTotal: number;
 }
 
+// Reports
+export interface CashFlowMonth {
+  month: string; // YYYY-MM
+  income: number;
+  spending: number;
+  net: number;
+}
+
+export interface CashFlowResponse {
+  months: CashFlowMonth[];
+}
+
+export interface SpendingCategoryBreakdown {
+  categoryId: string | null;
+  name: string;
+  icon: string;
+  color: string;
+  amount: number;
+  percent: number;
+  previousMonthAmount: number;
+}
+
+export interface SpendingReport {
+  month: string; // YYYY-MM
+  totalSpending: number;
+  income: number;
+  savingsRate: number | null;
+  breakdown: SpendingCategoryBreakdown[];
+}
+
 // Nudge
 export interface NudgeMessage {
   id: string;
