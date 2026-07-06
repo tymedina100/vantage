@@ -4,10 +4,11 @@ import { prisma } from "@worthlane/db";
 import { getAuthUser } from "@/lib/auth";
 import { ok, err, unauthorized } from "@/lib/response";
 import { startOfMonth, endOfMonth, addMonths } from "@/lib/dates";
+import { positiveMoneyAmount } from "@/lib/validation";
 
 const createSchema = z.object({
   categoryId: z.string(),
-  amount: z.number().positive(),
+  amount: positiveMoneyAmount,
   period: z.enum(["MONTHLY", "WEEKLY"]).default("MONTHLY"),
   rollover: z.boolean().default(false),
 });

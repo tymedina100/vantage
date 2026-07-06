@@ -126,19 +126,17 @@ export async function generateNudgesForUser(userId: string): Promise<void> {
     });
   }
 
-  // Write nudges to DB (deduplicate by type + day)
-  const today = now.toDateString();
+  // Write nudges to DB. The (userId, type, day) unique constraint makes this
+  // race-free: concurrent generators lose with P2002 instead of duplicating.
+  const day = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   for (const nudge of nudges) {
-    const existing = await prisma.nudge.findFirst({
-      where: {
-        userId,
-        type: nudge.type,
-        sentAt: { gte: new Date(today) },
-      },
-    });
-    if (!existing) {
-      await prisma.nudge.create({ data: { userId, ...nudge } });
+    try {
+      await prisma.nudge.create({ data: { userId, day, ...nudge } });
       await sendPushToUser(userId, nudge.message);
+    } catch (error) {
+      const isDuplicate =
+        typeof error === "object" && error !== null && (error as { code?: string }).code === "P2002";
+      if (!isDuplicate) throw error;
     }
   }
 }

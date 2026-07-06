@@ -1,11 +1,27 @@
 import { NextRequest } from "next/server";
 import { PlaidItemStatus, prisma } from "@worthlane/db";
+import { isPlaidSandbox, verifyPlaidWebhook } from "@/lib/plaid";
 import { syncPlaidItemRecord } from "@/lib/plaid-sync";
-import { ok } from "@/lib/response";
+import { err, ok } from "@/lib/response";
 import { captureServerException } from "@/lib/sentry";
 
 export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => null);
+  const rawBody = await req.text().catch(() => "");
+
+  // Verify the request actually came from Plaid. The only exception is
+  // sandbox mode without a verification header (local development).
+  const verificationHeader = req.headers.get("plaid-verification");
+  if (verificationHeader || !isPlaidSandbox()) {
+    const verified = await verifyPlaidWebhook(rawBody, verificationHeader);
+    if (!verified) return err("Invalid webhook signature", 401);
+  }
+
+  let body: unknown = null;
+  try {
+    body = JSON.parse(rawBody);
+  } catch {
+    // fall through to the ignored response below
+  }
   if (!body || typeof body !== "object") {
     return ok({ received: true, ignored: true });
   }

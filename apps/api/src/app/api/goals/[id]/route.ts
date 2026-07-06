@@ -3,10 +3,11 @@ import { z } from "zod";
 import { prisma } from "@worthlane/db";
 import { getAuthUser } from "@/lib/auth";
 import { ok, err, unauthorized, notFound } from "@/lib/response";
+import { positiveMoneyAmount } from "@/lib/validation";
 
 const updateSchema = z.object({
   currentAmount: z.number().min(0).optional(),
-  targetAmount: z.number().positive().optional(),
+  targetAmount: positiveMoneyAmount.optional(),
   targetDate: z.string().datetime().nullable().optional(),
   name: z.string().min(1).optional(),
   icon: z.string().optional(),

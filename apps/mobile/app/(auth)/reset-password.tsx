@@ -20,6 +20,10 @@ export default function ResetPasswordScreen() {
 
   const handleReset = async () => {
     if (!token || !newPassword) return;
+    if (newPassword.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {

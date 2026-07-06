@@ -36,9 +36,12 @@ export default function OnboardingWelcome() {
   const handleConnectBank = async () => {
     setConnecting(true);
     try {
-      const { linkToken: token } = await api.post<{ linkToken: string }>("/plaid/link-token", {});
+      const { linkToken: token } = await api.post<{ linkToken: string }>("/plaid/link-token", {
+        platform: Platform.OS === "ios" ? "ios" : "android",
+        mode: "create",
+      });
       openLink({
-        tokenConfig: { token, noLoadingState: false, redirectUri: "vantage://plaid-oauth" },
+        tokenConfig: { token, noLoadingState: false },
         onSuccess: async (success: LinkSuccess) => {
           try {
             await api.post("/plaid/exchange", {
@@ -61,7 +64,7 @@ export default function OnboardingWelcome() {
         onExit: (_exit: LinkExit) => {
           setConnecting(false);
         },
-      } as any);
+      });
     } catch {
       Alert.alert("Error", "Could not start bank connection. You can connect from Profile later.");
       setConnecting(false);
@@ -74,7 +77,7 @@ export default function OnboardingWelcome() {
         <ProgressDots current={0} total={3} />
 
         <View style={styles.hero}>
-          <Text style={styles.wordmark}>VANTAGE</Text>
+          <Text style={styles.wordmark}>WORTHLANE</Text>
           <Text style={styles.heading}>Let's build your{"\n"}financial picture.</Text>
           <Text style={styles.subtitle}>
             Connect your bank to automatically track spending, budgets, and progress toward your goals.
@@ -106,7 +109,7 @@ const styles = StyleSheet.create({
   inner: { flex: 1, padding: spacing.xl, justifyContent: "space-between" },
   dots: { flexDirection: "row", gap: spacing.xs, paddingTop: spacing.sm },
   dot: { height: 4, borderRadius: radius.full },
-  dotActive: { width: 24, backgroundColor: colors.primary },
+  dotActive: { width: 8, backgroundColor: colors.primary },
   dotCurrent: { width: 24, backgroundColor: colors.primary },
   dotInactive: { width: 8, backgroundColor: colors.border },
   hero: { flex: 1, justifyContent: "center" },

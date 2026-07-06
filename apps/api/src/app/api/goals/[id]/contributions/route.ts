@@ -4,9 +4,10 @@ import { prisma } from "@worthlane/db";
 import { getAuthUser } from "@/lib/auth";
 import { captureServerEvent } from "@/lib/posthog";
 import { ok, err, unauthorized, notFound } from "@/lib/response";
+import { positiveMoneyAmount } from "@/lib/validation";
 
 const createSchema = z.object({
-  amount: z.number().positive(),
+  amount: positiveMoneyAmount,
   note: z.string().optional(),
 });
 
@@ -33,15 +34,30 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     return err(`Contribution exceeds remaining goal amount of $${remaining.toFixed(2)}`, 400);
   }
 
-  const [contribution, updatedGoal] = await prisma.$transaction([
-    prisma.goalContribution.create({
-      data: { goalId: params.id, userId, amount, note },
-    }),
-    prisma.goal.update({
-      where: { id: params.id },
+  // The overshoot guard lives inside the update itself so concurrent
+  // contributions can't both pass the check above and exceed the target.
+  const result = await prisma.$transaction(async (tx) => {
+    const guarded = await tx.goal.updateMany({
+      where: {
+        id: params.id,
+        userId,
+        currentAmount: { lte: goal.targetAmount.toNumber() - amount },
+      },
       data: { currentAmount: { increment: amount } },
-    }),
-  ]);
+    });
+    if (guarded.count === 0) return null;
+
+    const contribution = await tx.goalContribution.create({
+      data: { goalId: params.id, userId, amount, note },
+    });
+    const updatedGoal = await tx.goal.findUniqueOrThrow({ where: { id: params.id } });
+    return { contribution, updatedGoal };
+  });
+
+  if (!result) {
+    return err("Contribution exceeds the remaining goal amount.", 409);
+  }
+  const { contribution, updatedGoal } = result;
 
   await captureServerEvent({
     distinctId: userId,

@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import jwt from "jsonwebtoken";
 import {
   Configuration,
   CountryCode,
@@ -263,4 +264,59 @@ export async function removeItem(accessToken: string) {
   } catch (error) {
     throw toPlaidIntegrationError(error, "Could not unlink this institution right now.");
   }
+}
+
+// --- Webhook verification (https://plaid.com/docs/api/webhooks/webhook-verification/) ---
+
+const webhookKeyCache = new Map<string, { key: crypto.KeyObject; cachedAt: number }>();
+const WEBHOOK_KEY_TTL_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Verifies the `plaid-verification` header: an ES256 JWT whose payload
+ * carries a SHA-256 of the raw request body. Returns true only when the
+ * signature checks out against Plaid's published key AND the body hash
+ * matches.
+ */
+export async function verifyPlaidWebhook(
+  rawBody: string,
+  verificationJwt: string | null | undefined
+): Promise<boolean> {
+  if (!verificationJwt) return false;
+
+  try {
+    const decoded = jwt.decode(verificationJwt, { complete: true });
+    if (!decoded || decoded.header.alg !== "ES256" || !decoded.header.kid) return false;
+    const kid = decoded.header.kid;
+
+    let cached = webhookKeyCache.get(kid);
+    if (!cached || Date.now() - cached.cachedAt > WEBHOOK_KEY_TTL_MS) {
+      const response = await plaidClient.webhookVerificationKeyGet({ key_id: kid });
+      const key = crypto.createPublicKey({
+        key: response.data.key as unknown as crypto.JsonWebKey,
+        format: "jwk",
+      });
+      cached = { key, cachedAt: Date.now() };
+      webhookKeyCache.set(kid, cached);
+    }
+
+    const payload = jwt.verify(verificationJwt, cached.key, {
+      algorithms: ["ES256"],
+      maxAge: "5m",
+    }) as { request_body_sha256?: string };
+
+    if (!payload.request_body_sha256) return false;
+
+    const bodyHash = crypto.createHash("sha256").update(rawBody, "utf8").digest("hex");
+    const expected = Buffer.from(payload.request_body_sha256, "utf8");
+    const actual = Buffer.from(bodyHash, "utf8");
+    return expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
+  } catch {
+    return false;
+  }
+}
+
+/** Local/sandbox development without the verification header is allowed;
+ *  anything else must present a valid signature. */
+export function isPlaidSandbox(): boolean {
+  return (process.env.PLAID_ENV ?? "sandbox") === "sandbox";
 }

@@ -3,9 +3,10 @@ import { z } from "zod";
 import { prisma } from "@worthlane/db";
 import { getAuthUser } from "@/lib/auth";
 import { ok, err, unauthorized, notFound } from "@/lib/response";
+import { positiveMoneyAmount } from "@/lib/validation";
 
 const updateSchema = z.object({
-  amount: z.number().positive().optional(),
+  amount: positiveMoneyAmount.optional(),
   period: z.enum(["MONTHLY", "WEEKLY"]).optional(),
   rollover: z.boolean().optional(),
 });

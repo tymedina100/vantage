@@ -90,6 +90,9 @@ export default function DashboardScreen() {
   const checkinMutation = useMutation({
     mutationFn: () => api.post("/streaks/checkin"),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["dashboard"] }),
+    // Auto check-in is best-effort; a failure shouldn't interrupt the
+    // dashboard, but it should not be silently swallowed either.
+    onError: (e) => console.warn("Daily check-in failed:", e),
   });
 
   const dismissNudge = useMutation({

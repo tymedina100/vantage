@@ -3,12 +3,13 @@ import { z } from "zod";
 import { AccountType, AccountSource, prisma } from "@worthlane/db";
 import { getAuthUser } from "@/lib/auth";
 import { err, notFound, ok, unauthorized } from "@/lib/response";
+import { moneyAmount } from "@/lib/validation";
 
 const updateSchema = z.object({
   name: z.string().min(1).optional(),
   institutionName: z.string().nullable().optional(),
   type: z.nativeEnum(AccountType).optional(),
-  currentBalance: z.number().optional(),
+  currentBalance: moneyAmount.optional(),
 });
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
