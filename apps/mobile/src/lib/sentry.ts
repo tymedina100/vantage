@@ -18,14 +18,14 @@ const sentryGlobal = globalThis as typeof globalThis & {
   __WORTHLANE_SENTRY_INITIALIZED__?: boolean;
 };
 
-// Only initialize the native Sentry SDK when a DSN is configured. Calling
-// Sentry.init unconditionally spins up native work at launch that isn't needed
-// when Sentry is unconfigured (as in the current production build). Sentry.wrap
-// below still works without init.
-if (dsn && !sentryGlobal.__WORTHLANE_SENTRY_INITIALIZED__) {
+// Always call Sentry.init (even with no DSN, where it initializes a disabled
+// client). Sentry.wrap() in app/_layout.tsx requires an initialized client;
+// skipping init entirely makes Sentry.wrap throw at launch and crashes the app.
+// With no DSN, `enabled: false` keeps it inert but valid.
+if (!sentryGlobal.__WORTHLANE_SENTRY_INITIALIZED__) {
   Sentry.init({
     dsn,
-    enabled: true,
+    enabled: Boolean(dsn),
     environment,
     sendDefaultPii: true,
     tracesSampleRate: isDevelopment ? 1.0 : 0.2,
