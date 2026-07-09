@@ -3,6 +3,13 @@
   "version": "0.0.1",
   "private": true,
   "main": "expo-router/entry",
+  "expo": {
+    "autolinking": {
+      "exclude": [
+        "react-native-plaid-link-sdk"
+      ]
+    }
+  },
   "scripts": {
     "dev": "expo start",
     "android": "expo run:android",

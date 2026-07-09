@@ -16,7 +16,7 @@ import {
 import { router } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as LocalAuthentication from "expo-local-authentication";
-import { LinkExit, LinkSuccess, openLink } from "react-native-plaid-link-sdk";
+import type { LinkExit, LinkSuccess } from "react-native-plaid-link-sdk";
 import { useAuthStore } from "@/store/auth";
 import { ApiError, api } from "@/lib/api";
 import { useSubscription } from "@/hooks/useSubscription";
@@ -325,6 +325,10 @@ export default function ProfileScreen() {
         plaidItemId,
       });
 
+      // Loaded lazily so the Plaid native module (excluded from the build for
+      // v1, see expo.autolinking.exclude) is never referenced while bank
+      // linking is disabled.
+      const { openLink } = require("react-native-plaid-link-sdk") as typeof import("react-native-plaid-link-sdk");
       await openLink({
         tokenConfig: {
           token: linkToken,
