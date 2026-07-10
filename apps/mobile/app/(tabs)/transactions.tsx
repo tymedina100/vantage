@@ -243,12 +243,10 @@ function TransactionRow({
         <Text style={styles.txMerchant} numberOfLines={1}>
           {tx.merchantName ?? (tx.amount > 0 ? "Manual expense" : "Manual income")}
         </Text>
-        <Text style={styles.txMeta}>
+        <Text style={styles.txMeta} numberOfLines={1}>
           {formatShortDate(tx.date)}
-          {tx.category ? ` · ${tx.category.name}` : ""}
-          {` · ${tx.account.name}`}
+          {tx.category ? ` · ${tx.category.name}` : ` · ${tx.account.name}`}
         </Text>
-        <Text style={styles.txSource}>{tx.isManual ? "Manual" : "Plaid sync"}</Text>
       </View>
 
       <View style={styles.txRight}>
